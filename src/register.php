@@ -1,7 +1,7 @@
 <?php
-require 'db.php';
-require 'mail_helper.php';
-require 'config.php';
+require_once 'db.php';
+require_once 'mail_helper.php';
+require_once 'config.php';
 
 $msg = "";
 $msgClass = "";
