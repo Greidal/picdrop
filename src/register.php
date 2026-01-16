@@ -91,7 +91,7 @@ require 'header.php';
                 <input type="text" name="username" placeholder="Anzeigename" required maxlength="20">
                 <input type="password" name="password" placeholder="Passwort" required>
 
-                <input type="text" name="reg_code" placeholder="Registrierungs-Code" required value="<?php echo $inviteToken ? $REGISTRATION_CODE : ''; ?>">
+                <input type="text" name="reg_code" placeholder="Registrierungs-Code" required value="<?php echo $inviteToken ? REGISTRATION_CODE : ''; ?>">
 
                 <button class="btn btn-primary" style="margin-top:10px;">Registrieren</button>
             </form>
