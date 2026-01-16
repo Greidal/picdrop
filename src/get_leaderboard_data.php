@@ -28,11 +28,12 @@ $details = [];
 if ($mergeByDevice == 1) {
     $sqlUsers = "
         SELECT 
-            COALESCE(device_uuid, uploader_name) as unique_id,
-            SUBSTRING_INDEX(GROUP_CONCAT(uploader_name ORDER BY timestamp DESC SEPARATOR '|||'), '|||', 1) as display_name,
-            COUNT(*) as count
-        FROM uploads
-        WHERE event_id = ? AND drink_id IS NOT NULL AND uploader_name != ''
+            COALESCE(u.device_uuid, u.uploader_name) as unique_id,
+            SUBSTRING_INDEX(GROUP_CONCAT(u.uploader_name ORDER BY u.timestamp DESC SEPARATOR '|||'), '|||', 1) as display_name,
+            SUM(d.score_factor) as count
+        FROM uploads u
+        JOIN drinks d ON u.drink_id = d.id
+        WHERE u.event_id = ? AND u.drink_id IS NOT NULL AND u.uploader_name != ''
         GROUP BY unique_id
         ORDER BY count DESC LIMIT 30
     ";
@@ -56,7 +57,7 @@ if ($mergeByDevice == 1) {
     while ($row = $resUsers->fetch_assoc()) {
         $users[] = [
             'uploader_name' => $row['display_name'],
-            'count' => $row['count']
+            'count' => (float)$row['count']
         ];
     }
 
@@ -73,12 +74,14 @@ if ($mergeByDevice == 1) {
     }
 } else {
     $resUsers = $conn->query("
-        SELECT uploader_name, COUNT(*) as count 
-        FROM uploads 
-        WHERE event_id = '$eventId' AND drink_id IS NOT NULL AND uploader_name != '' 
-        GROUP BY uploader_name ORDER BY count DESC LIMIT 30
+        SELECT u.uploader_name, SUM(d.score_factor) as count 
+        FROM uploads u
+        JOIN drinks d ON u.drink_id = d.id
+        WHERE u.event_id = '$eventId' AND u.drink_id IS NOT NULL AND u.uploader_name != '' 
+        GROUP BY u.uploader_name ORDER BY count DESC LIMIT 30
     ");
     while ($row = $resUsers->fetch_assoc()) {
+        $row['count'] = (float)$row['count'];
         $users[] = $row;
     }
 

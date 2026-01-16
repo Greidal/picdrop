@@ -63,6 +63,9 @@ require 'header.php';
                     const rank = index + 1;
                     const nameEscaped = u.uploader_name.replace(/'/g, "\\'");
 
+                    const score = parseFloat(u.count);
+                    const formattedScore = Number.isInteger(score) ? score : score.toFixed(1);
+
                     userHtml += `
                         <div class="flex-between" 
                              style="padding:12px 10px; border-bottom:1px solid #333; cursor:pointer; transition:0.2s;" 
@@ -75,7 +78,7 @@ require 'header.php';
                                 <span style="font-size:1.1rem;">${escapeHtml(u.uploader_name)}</span>
                             </div>
                             <span style="background:var(--primary); color:white; padding:2px 10px; border-radius:10px; font-weight:bold; box-shadow:0 0 5px var(--primary-glow);">
-                                ${u.count} 🍻
+                                ${formattedScore} <small style="font-size:0.8em">Pkt</small>
                             </span>
                         </div>
                     `;
@@ -94,7 +97,7 @@ require 'header.php';
                                 <img src="${escapeHtml(d.image_path)}" class="avatar">
                                 ${escapeHtml(d.name)}
                             </div>
-                            <strong style="color:var(--success); font-size:1.2rem;">${d.count}</strong>
+                            <strong style="color:var(--success); font-size:1.2rem;">${d.count}x</strong>
                         </div>
                     `;
                 });

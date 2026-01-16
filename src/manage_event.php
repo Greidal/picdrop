@@ -84,9 +84,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $fileName = time() . "_" . basename($_FILES['drink_image']['name']);
         $targetFile = $targetDir . $fileName;
 
+        $score = isset($_POST['drink_score']) ? floatval($_POST['drink_score']) : 1.0;
+
         if (move_uploaded_file($_FILES['drink_image']['tmp_name'], $targetFile)) {
-            $stmt = $conn->prepare("INSERT INTO drinks (event_uuid, name, image_path) VALUES (?, ?, ?)");
-            $stmt->bind_param("sss", $uuid, $_POST['drink_name'], $targetFile);
+            $stmt = $conn->prepare("INSERT INTO drinks (event_uuid, name, image_path, score_factor) VALUES (?, ?, ?, ?)");
+            $stmt->bind_param("sssd", $uuid, $_POST['drink_name'], $targetFile, $score);
             $stmt->execute();
 
             setFlashMessage("Getränk hinzugefügt!", "success");
@@ -104,7 +106,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->bind_param("is", $did, $uuid);
         $stmt->execute();
         $res = $stmt->get_result();
-
         if ($row = $res->fetch_assoc()) {
             if (file_exists($row['image_path'])) {
                 unlink($row['image_path']);
@@ -120,7 +121,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (isset($_POST['delete_event_final']) && $_POST['delete_event_final'] === 'yes') {
-        $dir = "uploads/" . $uuid;
         if (is_dir($dir)) {
             $files = new RecursiveIteratorIterator(
                 new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS),
@@ -210,7 +210,6 @@ require 'header.php';
                         </small>
                     </span>
                 </label>
-
                 <label class="toggle-switch">
                     <input type="checkbox" name="s_uploader" <?php if ($event['setting_show_uploader']) echo 'checked'; ?>>
                     <span class="slider"></span> Name/Getränk anzeigen
@@ -276,7 +275,17 @@ require 'header.php';
             <h3>Getränkekarte</h3>
             <form method="post" enctype="multipart/form-data">
                 <input type="text" name="drink_name" placeholder="Name (z.B. Bier)" required>
-                <input type="file" name="drink_image" accept="image/*" required>
+
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <div style="flex-grow:1;">
+                        <input type="file" name="drink_image" accept="image/*" required>
+                    </div>
+                    <div style="width:100px;">
+                        <input type="number" name="drink_score" placeholder="Faktor" value="1.0" step="0.1" title="Bewertungsfaktor (Punkte)" style="margin:10px 0;">
+                    </div>
+                </div>
+                <small style="color:#888; display:block; margin-bottom:10px;">Faktor: 1.0 = Normal, 2.0 = Doppelte Punkte</small>
+
                 <button class="btn btn-primary btn-small">Getränk hinzufügen</button>
             </form>
 
@@ -287,7 +296,11 @@ require 'header.php';
                     <div style="position:relative; text-align:center; background:black; border-radius:5px; padding:5px;">
                         <img src="<?php echo htmlspecialchars($d['image_path']); ?>" style="width:100%; height:80px; object-fit:cover; border-radius:5px;">
 
-                        <form method="post" onsubmit="return confirm('Wirklich löschen? Das Bild wird ebenfalls entfernt.');" style="position:absolute; top:-5px; right:-5px;">
+                        <div style="position:absolute; bottom:5px; right:5px; background:var(--primary); color:white; font-size:0.7rem; padding:2px 5px; border-radius:3px; font-weight:bold;">
+                            x<?php echo floatval($d['score_factor']); ?>
+                        </div>
+
+                        <form method="post" onsubmit="return confirm('Wirklich löschen?');" style="position:absolute; top:-5px; right:-5px;">
                             <input type="hidden" name="delete_drink_id" value="<?php echo $d['id']; ?>">
                             <button class="btn-danger" style="border-radius:50%; width:24px; height:24px; padding:0; line-height:24px;">×</button>
                         </form>
