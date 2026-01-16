@@ -134,6 +134,74 @@ require 'header.php';
         font-weight: bold;
         font-size: 0.9rem;
     }
+
+    #emoji-bar {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(20, 20, 20, 0.95);
+        padding: 8px 15px;
+        border-radius: 50px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        z-index: 1000;
+        border: 1px solid #444;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(10px);
+    }
+
+    .quick-btn {
+        background: transparent;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        padding: 0 5px;
+        transition: transform 0.1s;
+    }
+
+    .quick-btn:active {
+        transform: scale(1.3);
+    }
+
+    #emoji-form {
+        display: flex;
+        gap: 5px;
+        padding-left: 10px;
+        border-left: 1px solid #444;
+    }
+
+    #emoji-input {
+        background: #333;
+        border: 1px solid #555;
+        color: white;
+        border-radius: 20px;
+        width: 80px;
+        padding: 5px 10px;
+        font-size: 1.2rem;
+        text-align: center;
+        margin: 0;
+    }
+
+    #emoji-input:focus {
+        border-color: #ff0055;
+        outline: none;
+    }
+
+    .send-btn {
+        background: #ff0055;
+        border: none;
+        border-radius: 50%;
+        width: 35px;
+        height: 35px;
+        color: white;
+        font-size: 1rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
 </style>
 
 <div class="container text-center">
@@ -199,6 +267,16 @@ require 'header.php';
             <button onclick="toggleView()" class="btn btn-secondary btn-small">🔙 Zurück</button>
         </div>
     </div>
+</div>
+
+<div id="emoji-bar">
+    <button type="button" class="quick-btn" onclick="sendReaction('❤️')">❤️</button>
+    <button type="button" class="quick-btn" onclick="sendReaction('🔥')">🔥</button>
+    <button type="button" class="quick-btn" onclick="sendReaction('🍻')">🍻</button>
+    <form id="emoji-form" onsubmit="handleCustomEmoji(event)">
+        <input type="text" id="emoji-input" placeholder="Emoji..." maxlength="5" autocomplete="off">
+        <button type="submit" class="send-btn">🚀</button>
+    </form>
 </div>
 
 <script>
@@ -279,6 +357,31 @@ require 'header.php';
             behavior: "smooth",
             block: "center"
         });
+    }
+
+    function sendReaction(emoji) {
+        if (event && event.target.classList.contains('quick-btn')) {
+            const btn = event.target;
+            btn.style.transform = "scale(1.5)";
+            setTimeout(() => btn.style.transform = "scale(1)", 150);
+        }
+        const formData = new FormData();
+        formData.append('emoji', emoji);
+        fetch('reaction_api.php?action=send&event=<?php echo $eventId; ?>', {
+            method: 'POST',
+            body: formData
+        });
+    }
+
+    function handleCustomEmoji(e) {
+        e.preventDefault();
+        const input = document.getElementById('emoji-input');
+        const val = input.value.trim();
+        if (val) {
+            sendReaction(val);
+            input.value = "";
+            input.focus();
+        }
     }
 </script>
 </body>

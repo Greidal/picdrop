@@ -86,3 +86,13 @@ CREATE TABLE IF NOT EXISTS `blocked_devices` (
   UNIQUE KEY `idx_block_unique` (`event_uuid`, `device_uuid`),
   CONSTRAINT `fk_blocked_event` FOREIGN KEY (`event_uuid`) REFERENCES `events` (`uuid`) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS `live_reactions` (
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `event_uuid` VARCHAR(36) NOT NULL,
+  `emoji` VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_poll` (`event_uuid`, `id`),
+  CONSTRAINT `fk_reactions_event` FOREIGN KEY (`event_uuid`) REFERENCES `events` (`uuid`) ON DELETE CASCADE
+);

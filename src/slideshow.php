@@ -103,12 +103,50 @@ $eventData = $stmt->get_result()->fetch_assoc();
             text-transform: uppercase;
             letter-spacing: 2px;
         }
+
+        #reaction-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 20;
+            overflow: hidden;
+        }
+
+        .floater {
+            position: absolute;
+            bottom: -50px;
+            font-size: 4rem;
+            animation: floatUp 3s ease-out forwards;
+            opacity: 0;
+        }
+
+        @keyframes floatUp {
+            0% {
+                transform: translateY(0) scale(0.5);
+                opacity: 0;
+            }
+
+            10% {
+                opacity: 1;
+                transform: translateY(-5vh) scale(1.2);
+            }
+
+            100% {
+                transform: translateY(-60vh) scale(1);
+                opacity: 0;
+            }
+        }
     </style>
 </head>
 
 <body>
 
     <img id="stage" src="" alt="Slideshow">
+
+    <div id="reaction-layer"></div>
 
     <div id="badge" class="overlay">NEU!</div>
 
@@ -248,6 +286,43 @@ $eventData = $stmt->get_result()->fetch_assoc();
         setInterval(fetchImages, CONFIG.pollInterval);
         setInterval(nextSlide, CONFIG.duration);
         fetchImages();
+
+        let lastReactionId = 0;
+
+        function pollReactions() {
+            fetch(`reaction_api.php?action=poll&event=${CONFIG.eventId}&last_id=${lastReactionId}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.length > 0) {
+                        data.forEach(r => {
+                            lastReactionId = Math.max(lastReactionId, r.id);
+                            spawnEmoji(r.emoji);
+                        });
+                    }
+                })
+                .catch(e => console.error(e));
+        }
+
+        function spawnEmoji(char) {
+            const layer = document.getElementById('reaction-layer');
+            const el = document.createElement('div');
+            el.innerText = char;
+            el.className = 'floater';
+
+            const randomLeft = Math.floor(Math.random() * 80) + 10;
+            el.style.left = randomLeft + '%';
+
+            const randomDur = (Math.random() * 1 + 2) + 's';
+            el.style.animationDuration = randomDur;
+
+            layer.appendChild(el);
+
+            setTimeout(() => {
+                el.remove();
+            }, 3500);
+        }
+
+        setInterval(pollReactions, 1000);
     </script>
 </body>
 
