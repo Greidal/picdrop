@@ -165,6 +165,29 @@ require 'header.php';
         border-color: var(--primary);
         color: white;
     }
+
+    .btn-delete {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        background: rgba(255, 0, 0, 0.7);
+        color: white;
+        border: none;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+        transition: 0.2s;
+    }
+
+    .btn-delete:hover {
+        background: red;
+        transform: scale(1.1);
+    }
 </style>
 
 <div class="container">
@@ -193,7 +216,11 @@ require 'header.php';
                     'date' => $date
                 ];
             ?>
-                <div class="gallery-item" onclick="openLightbox(<?php echo $index; ?>)">
+                <div class="gallery-item" id="img-card-<?php echo $index; ?>" onclick="openLightbox(<?php echo $index; ?>)">
+
+                    <button class="btn-delete" onclick="deleteImage(event, '<?php echo $img['filename']; ?>', <?php echo $index; ?>)">
+                        <i class="fa fa-trash"></i>
+                    </button>
                     <img src="<?php echo $fullPath; ?>" loading="lazy" alt="Foto">
                 </div>
             <?php endforeach; ?>
@@ -229,6 +256,8 @@ require 'header.php';
     const lbDown = document.getElementById('lb-download');
 
     function openLightbox(index) {
+        if (images[index].deleted) return;
+
         currentIndex = index;
         updateLightbox();
         lb.classList.add('active');
@@ -241,12 +270,30 @@ require 'header.php';
     }
 
     function changeSlide(direction) {
-        currentIndex += direction;
+        let nextIndex = currentIndex;
+        let found = false;
+        let attempts = 0;
 
-        if (currentIndex >= images.length) currentIndex = 0;
-        if (currentIndex < 0) currentIndex = images.length - 1;
+        while (attempts < images.length) {
+            nextIndex += direction;
 
-        updateLightbox();
+            if (nextIndex >= images.length) nextIndex = 0;
+            if (nextIndex < 0) nextIndex = images.length - 1;
+
+            if (!images[nextIndex].deleted) {
+                currentIndex = nextIndex;
+                found = true;
+                break;
+            }
+
+            attempts++;
+        }
+
+        if (found) {
+            updateLightbox();
+        } else {
+            closeLightbox();
+        }
     }
 
     function updateLightbox() {
@@ -261,6 +308,40 @@ require 'header.php';
         lbMeta.innerText = imgData.date + " Uhr";
 
         lbDown.href = imgData.src;
+    }
+
+    async function deleteImage(event, filename, index) {
+        event.stopPropagation();
+        if (!confirm("Bist du sicher, dass du dieses Bild löschen willst?")) return;
+
+        const formData = new FormData();
+        formData.append('event_uuid', '<?php echo $uuid; ?>');
+        formData.append('filename', filename);
+
+        try {
+            const response = await fetch('delete_image.php', {
+                method: 'POST',
+                body: formData
+            });
+
+            if (response.ok) {
+                const card = document.getElementById('img-card-' + index);
+                if (card) {
+                    card.style.transform = 'scale(0)';
+                    setTimeout(() => card.remove(), 300);
+                }
+
+                images[index].deleted = true;
+
+                if (lb.classList.contains('active') && currentIndex === index) {
+                    closeLightbox();
+                }
+            } else {
+                alert("Fehler beim Löschen.");
+            }
+        } catch (e) {
+            console.error(e);
+        }
     }
 
     document.addEventListener('keydown', function(e) {
