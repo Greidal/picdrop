@@ -159,7 +159,6 @@ require 'header.php';
 ?>
 
 <div class="container">
-    <a href="admin.php" class="btn btn-secondary btn-small">🔙 Dashboard</a>
     <div class="flex-between">
         <a href="admin.php" class="btn btn-secondary btn-small">🔙 Dashboard</a>
         <a href="manage_guests.php?event=<?php echo $uuid; ?>" class="btn btn-primary btn-small">👮 Gäste & Spam verwalten</a>
