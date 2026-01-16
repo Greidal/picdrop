@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS `events` (
   `setting_show_time` TINYINT(1) DEFAULT 1,
   `setting_show_event_name` TINYINT(1) DEFAULT 1,
   `setting_slide_duration` INT(11) DEFAULT 8000,
+  `setting_merge_by_device` TINYINT(1) DEFAULT 1,
   PRIMARY KEY (`uuid`)
 );
 
@@ -65,11 +66,23 @@ CREATE TABLE IF NOT EXISTS `event_users` (
 CREATE TABLE IF NOT EXISTS `uploads` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
   `event_id` VARCHAR(36) NOT NULL,
+  `device_uuid` VARCHAR(64) DEFAULT NULL,
   `filename` VARCHAR(255) NOT NULL,
   `uploader_name` VARCHAR(100) DEFAULT NULL,
   `drink_id` INT(11) DEFAULT NULL,
   `timestamp` DATETIME DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
+  KEY `idx_device_uuid` (`device_uuid`),
   CONSTRAINT `fk_uploads_event` FOREIGN KEY (`event_id`) REFERENCES `events` (`uuid`) ON DELETE CASCADE,
   CONSTRAINT `fk_uploads_drink` FOREIGN KEY (`drink_id`) REFERENCES `drinks` (`id`) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS `blocked_devices` (
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `event_uuid` VARCHAR(36) NOT NULL,
+  `device_uuid` VARCHAR(64) NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_block_unique` (`event_uuid`, `device_uuid`),
+  CONSTRAINT `fk_blocked_event` FOREIGN KEY (`event_uuid`) REFERENCES `events` (`uuid`) ON DELETE CASCADE
 );

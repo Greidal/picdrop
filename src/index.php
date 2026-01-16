@@ -25,6 +25,17 @@ if ($flash) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $deviceUuid = $_POST['device_uuid'] ?? '';
+
+    if (!empty($deviceUuid)) {
+        $banCheck = $conn->prepare("SELECT id FROM blocked_devices WHERE event_uuid = ? AND device_uuid = ?");
+        $banCheck->bind_param("ss", $eventId, $deviceUuid);
+        $banCheck->execute();
+        if ($banCheck->get_result()->num_rows > 0) {
+            die("⛔ Dein Gerät wurde für dieses Event gesperrt. Wende dich an den Arschdmin.");
+        }
+    }
+
     if (isset($_FILES['image']) && $_FILES['image']['error'] !== UPLOAD_ERR_NO_FILE) {
         $error = $_FILES['image']['error'];
 
@@ -45,8 +56,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $targetFile = $uploadDir . $fileName;
 
                 if (move_uploaded_file($_FILES['image']['tmp_name'], $targetFile)) {
-                    $stmt = $conn->prepare("INSERT INTO uploads (event_id, filename, uploader_name, drink_id) VALUES (?, ?, ?, ?)");
-                    $stmt->bind_param("sssi", $eventId, $fileName, $uploader, $drinkId);
+                    $stmt = $conn->prepare("INSERT INTO uploads (event_id, device_uuid, filename, uploader_name, drink_id) VALUES (?, ?, ?, ?, ?)");
+                    $stmt->bind_param("ssssi", $eventId, $deviceUuid, $fileName, $uploader, $drinkId);
 
                     if ($stmt->execute()) {
                         $txt = $drinkId ? "Prost! 🍻 Check-in erledigt!" : "Bild ist auf der Leinwand! 🥳";
@@ -139,12 +150,16 @@ require 'header.php';
 
         <form method="post" enctype="multipart/form-data" id="form-cam">
             <input type="hidden" name="uploader" class="hidden-uploader">
+            <input type="hidden" name="device_uuid" class="hidden-device-id">
+
             <label for="inp-cam" class="btn btn-primary">Kamera öffnen 📸</label>
             <input id="inp-cam" type="file" name="image" accept="image/*" capture="environment" class="hidden" onchange="submitForm('form-cam', this)">
         </form>
 
         <form method="post" enctype="multipart/form-data" id="form-gal">
             <input type="hidden" name="uploader" class="hidden-uploader">
+            <input type="hidden" name="device_uuid" class="hidden-device-id">
+
             <label for="inp-gal" class="btn btn-secondary" style="margin-top:15px; display:block; margin-left:auto; margin-right:auto; max-width:300px;">Aus Galerie wählen 🖼️</label>
             <input id="inp-gal" type="file" name="image" accept="image/*" class="hidden" onchange="submitForm('form-gal', this)">
         </form>
@@ -174,6 +189,7 @@ require 'header.php';
         <form method="post" enctype="multipart/form-data" id="form-bar" class="hidden">
             <input type="hidden" name="uploader" class="hidden-uploader">
             <input type="hidden" name="drink_id" id="selected-drink-id">
+            <input type="hidden" name="device_uuid" class="hidden-device-id">
 
             <label for="inp-bar-cam" class="btn btn-primary" style="margin-top:20px;">📸 Beweisfoto machen</label>
             <input id="inp-bar-cam" type="file" name="image" accept="image/*" capture="environment" class="hidden" onchange="submitForm('form-bar', this)">
@@ -186,6 +202,18 @@ require 'header.php';
 </div>
 
 <script>
+    function getDeviceId() {
+        let uuid = localStorage.getItem('fotobox_device_uuid');
+        if (!uuid) {
+            uuid = 'dev_' + Date.now().toString(36) + Math.random().toString(36).substr(2);
+            localStorage.setItem('fotobox_device_uuid', uuid);
+        }
+        return uuid;
+    }
+
+    const deviceId = getDeviceId();
+    document.querySelectorAll('.hidden-device-id').forEach(el => el.value = deviceId);
+
     const nameInput = document.getElementById('uploader-name');
     if (nameInput.value.trim() === "") {
         const storedName = localStorage.getItem('party_user');

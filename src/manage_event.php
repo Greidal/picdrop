@@ -25,10 +25,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $s_uploader = isset($_POST['s_uploader']) ? 1 : 0;
         $s_time = isset($_POST['s_time']) ? 1 : 0;
         $s_evtname = isset($_POST['s_evtname']) ? 1 : 0;
+        $s_merge = isset($_POST['s_merge']) ? 1 : 0;
         $s_duration = intval($_POST['s_duration']);
 
-        $upd = $conn->prepare("UPDATE events SET setting_show_badge=?, setting_show_uploader=?, setting_show_time=?, setting_show_event_name=?, setting_slide_duration=? WHERE uuid=?");
-        $upd->bind_param("iiiiis", $s_badge, $s_uploader, $s_time, $s_evtname, $s_duration, $uuid);
+        $upd = $conn->prepare("UPDATE events SET setting_show_badge=?, setting_show_uploader=?, setting_show_time=?, setting_show_event_name=?, setting_merge_by_device=?, setting_slide_duration=? WHERE uuid=?");
+        $upd->bind_param("iiiiiis", $s_badge, $s_uploader, $s_time, $s_evtname, $s_merge, $s_duration, $uuid);
 
         if ($upd->execute()) {
             setFlashMessage("Einstellungen gespeichert!", "success");
@@ -159,6 +160,11 @@ require 'header.php';
 
 <div class="container">
     <a href="admin.php" class="btn btn-secondary btn-small">🔙 Dashboard</a>
+    <div class="flex-between">
+        <a href="admin.php" class="btn btn-secondary btn-small">🔙 Dashboard</a>
+        <a href="manage_guests.php?event=<?php echo $uuid; ?>" class="btn btn-primary btn-small">👮 Gäste & Spam verwalten</a>
+    </div>
+
     <h1>⚙️ <?php echo htmlspecialchars($event['name']); ?></h1>
 
     <?php if ($msg): ?>
@@ -192,6 +198,18 @@ require 'header.php';
                 <label class="toggle-switch">
                     <input type="checkbox" name="s_badge" <?php if ($event['setting_show_badge']) echo 'checked'; ?>>
                     <span class="slider"></span> "NEU" Badge anzeigen
+                </label>
+
+                <label class="toggle-switch" style="grid-column: 1 / -1;">
+                    <input type="checkbox" name="s_merge" <?php if ($event['setting_merge_by_device']) echo 'checked'; ?>>
+                    <span class="slider"></span>
+                    <span>
+                        <strong>Leaderboard intelligent zusammenfassen</strong><br>
+                        <small style="color:#888; font-size:0.8em; display:block; margin-top:2px;">
+                            Wenn aktiv: Fasst alle Uploads eines Geräts zusammen (Schutz gegen Fake-Namen).<br>
+                            Wenn aus: Jeder eingegebene Name zählt separat (Chaos-Modus).
+                        </small>
+                    </span>
                 </label>
 
                 <label class="toggle-switch">
