@@ -20,6 +20,30 @@ function redirectSelf($uuid)
 
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['rename_event'])) {
+        $newName = trim($_POST['event_name'] ?? '');
+        $nameLength = function_exists('mb_strlen') ? mb_strlen($newName) : strlen($newName);
+
+        if ($newName === '') {
+            $msg = "Bitte einen neuen Event-Namen eingeben.";
+            $msgClass = "error";
+        } elseif ($nameLength > 100) {
+            $msg = "Der Event-Name darf maximal 100 Zeichen lang sein.";
+            $msgClass = "error";
+        } else {
+            $upd = $conn->prepare("UPDATE events SET name = ? WHERE uuid = ?");
+            $upd->bind_param("ss", $newName, $uuid);
+
+            if ($upd->execute()) {
+                setFlashMessage("Event erfolgreich umbenannt!", "success");
+                redirectSelf($uuid);
+            } else {
+                $msg = "Fehler beim Umbenennen des Events.";
+                $msgClass = "error";
+            }
+        }
+    }
+
     if (isset($_POST['update_settings'])) {
         $s_badge = isset($_POST['s_badge']) ? 1 : 0;
         $s_uploader = isset($_POST['s_uploader']) ? 1 : 0;
@@ -186,6 +210,17 @@ require 'header.php';
                 <a href="<?php echo $appUrl; ?>" target="_blank" class="btn btn-secondary btn-small"><i class="fa fa-external-link-alt"></i> Öffnen</a>
             </div>
         </div>
+    </div>
+
+    <div class="card">
+        <h3>Event umbenennen</h3>
+        <form method="post" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+            <div style="flex:1; min-width:240px;">
+                <label for="eventName">Neuer Event-Name</label>
+                <input type="text" id="eventName" name="event_name" value="<?php echo htmlspecialchars($event['name']); ?>" maxlength="100" required>
+            </div>
+            <button type="submit" name="rename_event" value="1" class="btn btn-primary btn-small">Umbenennen</button>
+        </form>
     </div>
 
     <div class="card">
