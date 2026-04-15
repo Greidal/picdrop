@@ -24,6 +24,8 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
 └── src/
     ├── admin.php              # Admin interface
     ├── auth.php               # Authentication logic
+    ├── bootstrap.php          # Authentication logic
+    ├── composer.json          # Authentication logic
     ├── config.php             # Configuration (DB, settings)
     ├── db.php                 # Database connection
     ├── download_zip.php       # Download images as ZIP
@@ -73,7 +75,8 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
 - Default credentials and settings can be changed in `.env` (see `example.env`), `src/config.php` and `db/init.sql`.
 
 ## Email Setup
-- PHPMailer is included in `src/libs/PHPMailer/`.
+- PHPMailer is installed via Composer from `src/composer.json` during image build.
+- For local legacy setups, `src/libs/PHPMailer/` is still supported as a fallback by `src/mail_helper.php`.
 - Configure SMTP settings in `src/mail_helper.php` and/or `src/config.php`.
 - Ensure your SMTP credentials are correct for email features to work.
 

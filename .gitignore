@@ -1,4 +1,5 @@
 /src/libs
+/src/vendor
 /src/config.php
 
 .env
