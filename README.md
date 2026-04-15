@@ -71,8 +71,9 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
    - Consider using reverse proxies such as Traefik (as used in the provided `docker-compose.yml`), nginx or the likes in production
 
 ### Database
-- The database is initialized using `db/init.sql` on first run.
-- Default credentials and settings can be changed in `.env` (see `example.env`), `src/config.php` and `db/init.sql`.
+- The application bootstraps its schema automatically on first connection if the tables are missing.
+- The MariaDB container still uses `MYSQL_DATABASE` to create the database itself on a fresh volume.
+- Default credentials and settings can be changed in `.env` (see `example.env`) and `src/config.php`.
 
 ## Email Setup
 - PHPMailer is installed via Composer from `src/composer.json` during image build.
