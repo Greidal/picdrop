@@ -10,6 +10,8 @@ RUN apt-get update \
     && a2enmod rewrite \
     && rm -rf /var/lib/apt/lists/*
 
+COPY uploads.ini /usr/local/etc/php/conf.d/99-uploads.ini
+
 WORKDIR /var/www/html
 
 COPY src/composer.json /var/www/html/composer.json
