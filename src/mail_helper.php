@@ -3,10 +3,20 @@
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-require 'libs/PHPMailer/src/Exception.php';
-require 'libs/PHPMailer/src/PHPMailer.php';
-require 'libs/PHPMailer/src/SMTP.php';
-require 'config.php';
+$composerAutoload = __DIR__ . '/vendor/autoload.php';
+$legacyPhpMailerPath = __DIR__ . '/libs/PHPMailer/src/PHPMailer.php';
+
+if (file_exists($composerAutoload)) {
+    require_once $composerAutoload;
+} elseif (file_exists($legacyPhpMailerPath)) {
+    require_once __DIR__ . '/libs/PHPMailer/src/Exception.php';
+    require_once __DIR__ . '/libs/PHPMailer/src/PHPMailer.php';
+    require_once __DIR__ . '/libs/PHPMailer/src/SMTP.php';
+} else {
+    throw new RuntimeException('PHPMailer not found (neither Composer vendor nor src/libs).');
+}
+
+require_once __DIR__ . '/config.php';
 
 function sendVerificationMail($toEmail, $token)
 {

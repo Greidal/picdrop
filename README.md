@@ -1,4 +1,4 @@
-# Lukasfoto Photo Gallery
+# PicDrop Photo Gallery
 
 A web-based photo gallery and event management system built with PHP and MySQL/MariaDB. This project allows users to register, log in, upload and view images, manage events, and participate in leaderboards. It also includes an admin interface and email notifications using PHPMailer.
 
@@ -24,6 +24,8 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
 └── src/
     ├── admin.php              # Admin interface
     ├── auth.php               # Authentication logic
+    ├── bootstrap.php          # Authentication logic
+    ├── composer.json          # Authentication logic
     ├── config.php             # Configuration (DB, settings)
     ├── db.php                 # Database connection
     ├── download_zip.php       # Download images as ZIP
@@ -55,7 +57,7 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
 1. **Clone the repository:**
    ```sh
    git clone <repo-url>
-   cd lukasfoto
+   cd picdrop
    ```
 2. **Configure Environment:**
    - Edit `src/config.php` for database and site settings if needed.
@@ -69,13 +71,20 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
    - Consider using reverse proxies such as Traefik (as used in the provided `docker-compose.yml`), nginx or the likes in production
 
 ### Database
-- The database is initialized using `db/init.sql` on first run.
-- Default credentials and settings can be changed in `.env` (see `example.env`), `src/config.php` and `db/init.sql`.
+- The application bootstraps its schema automatically on first connection if the tables are missing.
+- The MariaDB container still uses `MYSQL_DATABASE` to create the database itself on a fresh volume.
+- Default credentials and settings can be changed in `.env` (see `example.env`) and `src/config.php`.
 
 ## Email Setup
-- PHPMailer is included in `src/libs/PHPMailer/`.
+- PHPMailer is installed via Composer from `src/composer.json` during image build.
+- For local legacy setups, `src/libs/PHPMailer/` is still supported as a fallback by `src/mail_helper.php`.
 - Configure SMTP settings in `src/mail_helper.php` and/or `src/config.php`.
 - Ensure your SMTP credentials are correct for email features to work.
+
+## CI/CD (GHCR)
+- The workflow `.github/workflows/publish-ghcr.yml` builds and publishes a multi-arch image (`linux/amd64`, `linux/arm64`) to GHCR.
+- Target image name: `ghcr.io/<owner>/<repo>`.
+- Triggered on pushes to `main`/`master`, tags (`v*`), and manual runs.
 
 ## Customization
 - **Events**: Use the admin panel to create and manage events.
