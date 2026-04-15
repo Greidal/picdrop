@@ -1,13 +1,12 @@
 services:
   picdrop:
-    build: .
+    image: ghcr.io/greidal/picdrop:latest
     container_name: picdrop
     restart: unless-stopped
     volumes:
-      - ./src:/var/www/html
-      - ./uploads:/var/www/html/uploads
-      - ./uploads.ini:/usr/local/etc/php/conf.d/uploads.ini
+      - picdrop_uploads:/var/www/html/uploads
     environment:
+      # Database Configuration
       DB_HOST: db
       DB_USER: ${MYSQL_USER}
       DB_PASS: ${MYSQL_PASSWORD}
@@ -33,12 +32,6 @@ services:
       - "traefik.http.routers.picdrop.tls=true"
       - "traefik.http.routers.picdrop.tls.certresolver=letsencrypt"
       - "traefik.docker.network=traefik"
-
-      - "traefik.http.routers.picdrop-admin.rule=Host(`picdrop.klimarschanlage.de`) && Path(`/info.php`)"
-      - "traefik.http.routers.picdrop-admin.entrypoints=https"
-      - "traefik.http.routers.picdrop-admin.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.picdrop-admin.priority=100"
-      - "traefik.http.routers.picdrop-admin.middlewares=authentikAuthKlimarsch@file"
     networks:
       - default
       - traefik
@@ -52,11 +45,13 @@ services:
       MYSQL_DATABASE: fotobox
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-    ports:
-      - "127.0.0.1:3306:3306"
     volumes:
-      - ./db_data:/var/lib/mysql
+      - picdrop_db:/var/lib/mysql
 
 networks:
   traefik:
     external: true
+
+volumes:
+  picdrop_db:
+  picdrop_uploads:
