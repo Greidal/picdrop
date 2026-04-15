@@ -81,6 +81,11 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
 - Configure SMTP settings in `src/mail_helper.php` and/or `src/config.php`.
 - Ensure your SMTP credentials are correct for email features to work.
 
+## CI/CD (GHCR)
+- The workflow `.github/workflows/publish-ghcr.yml` builds and publishes a multi-arch image (`linux/amd64`, `linux/arm64`) to GHCR.
+- Target image name: `ghcr.io/<owner>/<repo>`.
+- Triggered on pushes to `main`/`master`, tags (`v*`), and manual runs.
+
 ## Customization
 - **Events**: Use the admin panel to create and manage events.
 - **Gallery**: Upload and manage images via the web interface.
