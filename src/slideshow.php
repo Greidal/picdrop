@@ -16,6 +16,7 @@ $eventData = $stmt->get_result()->fetch_assoc();
 <head>
     <meta charset="UTF-8">
     <title><?php echo htmlspecialchars($eventData['name']); ?> Slideshow</title>
+    <link rel="icon" href="favicon.png" type="image/png">
     <style>
         body {
             background: #000;
