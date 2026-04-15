@@ -1,7 +1,7 @@
 services:
-  lukasfoto:
+  picdrop:
     build: .
-    container_name: lukasfoto
+    container_name: picdrop
     restart: unless-stopped
     volumes:
       - ./src:/var/www/html
@@ -14,24 +14,24 @@ services:
       DB_NAME: fotobox
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.lukasfoto.rule=Host(`lukasfoto.klimarschanlage.de`)"
-      - "traefik.http.routers.lukasfoto.entrypoints=https"
-      - "traefik.http.routers.lukasfoto.tls=true"
-      - "traefik.http.routers.lukasfoto.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.picdrop.rule=Host(`picdrop.klimarschanlage.de`)"
+      - "traefik.http.routers.picdrop.entrypoints=https"
+      - "traefik.http.routers.picdrop.tls=true"
+      - "traefik.http.routers.picdrop.tls.certresolver=letsencrypt"
       - "traefik.docker.network=traefik"
 
-      - "traefik.http.routers.lukasfoto-admin.rule=Host(`lukasfoto.klimarschanlage.de`) && Path(`/info.php`)"
-      - "traefik.http.routers.lukasfoto-admin.entrypoints=https"
-      - "traefik.http.routers.lukasfoto-admin.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.lukasfoto-admin.priority=100"
-      - "traefik.http.routers.lukasfoto-admin.middlewares=authentikAuthKlimarsch@file"
+      - "traefik.http.routers.picdrop-admin.rule=Host(`picdrop.klimarschanlage.de`) && Path(`/info.php`)"
+      - "traefik.http.routers.picdrop-admin.entrypoints=https"
+      - "traefik.http.routers.picdrop-admin.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.picdrop-admin.priority=100"
+      - "traefik.http.routers.picdrop-admin.middlewares=authentikAuthKlimarsch@file"
     networks:
       - default
       - traefik
 
   db:
     image: mariadb:10.11
-    container_name: lukasfoto_db
+    container_name: picdrop_db
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}

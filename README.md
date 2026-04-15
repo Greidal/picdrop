@@ -1,4 +1,4 @@
-# Lukasfoto Photo Gallery
+# PicDrop Photo Gallery
 
 A web-based photo gallery and event management system built with PHP and MySQL/MariaDB. This project allows users to register, log in, upload and view images, manage events, and participate in leaderboards. It also includes an admin interface and email notifications using PHPMailer.
 
@@ -55,7 +55,7 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
 1. **Clone the repository:**
    ```sh
    git clone <repo-url>
-   cd lukasfoto
+   cd picdrop
    ```
 2. **Configure Environment:**
    - Edit `src/config.php` for database and site settings if needed.
