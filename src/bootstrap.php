@@ -110,6 +110,8 @@ function picdropEnsureSchema(mysqli $conn): void
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
 
     if (picdropDatabaseSchemaVersionExists($conn, 1)) {
+        // Schema already initialized, but still create bootstrap admin user if needed
+        picdropCreateBootstrapAdminUser($conn);
         return;
     }
 
@@ -118,5 +120,40 @@ function picdropEnsureSchema(mysqli $conn): void
     }
 
     $stmt = $conn->prepare("INSERT IGNORE INTO `schema_migrations` (`version`) VALUES (1)");
+    $stmt->execute();
+
+    // Create bootstrap admin user after schema is initialized
+    picdropCreateBootstrapAdminUser($conn);
+}
+
+function picdropCreateBootstrapAdminUser(mysqli $conn): void
+{
+    $bootstrapUsername = getenv('ADMIN_USERNAME');
+    $bootstrapPassword = getenv('ADMIN_PASSWORD');
+    $bootstrapEmail = getenv('ADMIN_EMAIL');
+
+    // Only create if all required fields are provided
+    if (empty($bootstrapUsername) || empty($bootstrapPassword) || empty($bootstrapEmail)) {
+        return;
+    }
+
+    // Check if admin user already exists
+    $stmt = $conn->prepare("SELECT `id` FROM `users` WHERE `username` = ? OR `email` = ?");
+    $stmt->bind_param("ss", $bootstrapUsername, $bootstrapEmail);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    if ($result->num_rows > 0) {
+        // User already exists, skip creation
+        return;
+    }
+
+    // Create bootstrap admin user
+    $hashedPassword = password_hash($bootstrapPassword, PASSWORD_BCRYPT);
+    $stmt = $conn->prepare(
+        "INSERT INTO `users` (`username`, `email`, `password`, `source`, `is_admin`, `is_verified`) 
+         VALUES (?, ?, ?, 'local', 1, 1)"
+    );
+    $stmt->bind_param("sss", $bootstrapUsername, $bootstrapEmail, $hashedPassword);
     $stmt->execute();
 }

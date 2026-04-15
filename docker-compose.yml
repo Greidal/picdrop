@@ -12,6 +12,20 @@ services:
       DB_USER: ${MYSQL_USER}
       DB_PASS: ${MYSQL_PASSWORD}
       DB_NAME: fotobox
+      # SMTP Configuration
+      SMTP_HOST: ${SMTP_HOST:-smtp.ionos.de}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-tls}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-PicDrop Fotobox}
+      # Application Configuration
+      REGISTRATION_CODE: ${REGISTRATION_CODE}
+      # Bootstrap Admin User (all required for admin creation)
+      ADMIN_USERNAME: ${ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.picdrop.rule=Host(`picdrop.klimarschanlage.de`)"
