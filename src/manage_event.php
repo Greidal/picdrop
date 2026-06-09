@@ -57,8 +57,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $upd->bind_param("iiiiiiis", $s_badge, $s_uploader, $s_time, $s_evtname, $s_bar, $s_merge, $s_duration, $uuid);
 
         if ($upd->execute()) {
-            setFlashMessage("Einstellungen gespeichert!", "success");
-            redirectSelf($uuid);
+            if (isset($_FILES['event_logo']) && $_FILES['event_logo']['error'] !== UPLOAD_ERR_NO_FILE) {
+                $targetDir = "uploads/$uuid/";
+                if (!is_dir($targetDir)) mkdir($targetDir, 0777, true);
+
+                $fileName = time() . "_" . basename($_FILES['event_logo']['name']);
+                $targetFile = $targetDir . $fileName;
+
+                if (move_uploaded_file($_FILES['event_logo']['tmp_name'], $targetFile)) {
+                    $logoStmt = $conn->prepare("UPDATE events SET logo_path = ? WHERE uuid = ?");
+                    $logoStmt->bind_param("ss", $targetFile, $uuid);
+                    $logoStmt->execute();
+
+                    setFlashMessage("Einstellungen gespeichert! Logo hochgeladen!", "success");
+                    redirectSelf($uuid);
+                }
+
+                $msg = "Fehler beim Upload des Logos.";
+                $msgClass = "error";
+            } else {
+                setFlashMessage("Einstellungen gespeichert!", "success");
+                redirectSelf($uuid);
+            }
         }
     }
 
@@ -76,28 +96,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         setFlashMessage("Logo entfernt.", "success");
         redirectSelf($uuid);
-    }
-
-    if (isset($_FILES['event_logo']) && isset($_POST['update_settings'])) {
-        if ($_FILES['event_logo']['error'] !== UPLOAD_ERR_NO_FILE) {
-            $targetDir = "uploads/$uuid/";
-            if (!is_dir($targetDir)) mkdir($targetDir, 0777, true);
-
-            $fileName = time() . "_" . basename($_FILES['event_logo']['name']);
-            $targetFile = $targetDir . $fileName;
-
-            if (move_uploaded_file($_FILES['event_logo']['tmp_name'], $targetFile)) {
-                $upd = $conn->prepare("UPDATE events SET logo_path = ? WHERE uuid = ?");
-                $upd->bind_param("ss", $targetFile, $uuid);
-                $upd->execute();
-
-                setFlashMessage("Logo hochgeladen!", "success");
-                redirectSelf($uuid);
-            } else {
-                $msg = "Fehler beim Upload des Logos.";
-                $msgClass = "error";
-            }
-        }
     }
 
     if (isset($_POST['invite_email'])) {
@@ -184,6 +182,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (isset($_POST['delete_event_final']) && $_POST['delete_event_final'] === 'yes') {
+        $dir = "uploads/$uuid/";
+
         if (is_dir($dir)) {
             $files = new RecursiveIteratorIterator(
                 new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS),
@@ -264,6 +264,19 @@ require 'header.php';
 
     <div class="card">
         <h3>Slideshow-Einstellungen</h3>
+        <div style="margin-top:15px;">
+            <label>Event-Logo (oben links, optional)</label>
+            <?php if (!empty($event['logo_path'])): ?>
+                <div style="display:flex; gap:10px; align-items:center; margin-bottom:8px;">
+                    <img src="<?php echo htmlspecialchars($event['logo_path']); ?>" style="height:60px; object-fit:contain; border-radius:6px; border:1px solid #333; background:#000;">
+                    <form method="post" style="display:inline; margin:0;">
+                        <input type="hidden" name="delete_logo" value="1">
+                        <button class="btn btn-danger btn-small" style="height:36px;">Logo entfernen</button>
+                    </form>
+                </div>
+            <?php endif; ?>
+        </div>
+
         <form method="post" enctype="multipart/form-data">
             <input type="hidden" name="update_settings" value="1">
 
@@ -310,17 +323,8 @@ require 'header.php';
             </div>
 
             <div style="margin-top:15px;">
-                <label>Event-Logo (oben links, optional)</label>
-                <?php if (!empty($event['logo_path'])): ?>
-                    <div style="display:flex; gap:10px; align-items:center; margin-bottom:8px;">
-                        <img src="<?php echo htmlspecialchars($event['logo_path']); ?>" style="height:60px; object-fit:contain; border-radius:6px; border:1px solid #333; background:#000;">
-                        <form method="post" style="display:inline;">
-                            <input type="hidden" name="delete_logo" value="1">
-                            <button class="btn btn-danger btn-small" style="height:36px;">Logo entfernen</button>
-                        </form>
-                    </div>
-                <?php endif; ?>
-                <input type="file" name="event_logo" accept="image/*">
+                <label for="eventLogo">Logo hochladen oder ersetzen</label>
+                <input id="eventLogo" type="file" name="event_logo" accept="image/*">
                 <small style="color:#888; display:block; margin-top:6px;">Max. 2MB empfohlen. Akzeptiert PNG/JPG.</small>
             </div>
 
