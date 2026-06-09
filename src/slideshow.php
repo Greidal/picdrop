@@ -122,11 +122,12 @@ $eventData = $stmt->get_result()->fetch_assoc();
             width: 120px;
             height: auto;
             object-fit: contain;
-            z-index: 15;
+            z-index: 50;
             pointer-events: none;
             border-radius: 8px;
             background: rgba(0, 0, 0, 0.25);
             padding: 6px;
+            opacity: 1;
         }
 
         .floater {
@@ -165,7 +166,7 @@ $eventData = $stmt->get_result()->fetch_assoc();
     <div id="badge" class="overlay">NEU!</div>
 
     <?php if (!empty($eventData['logo_path'])): ?>
-        <img id="event-logo" class="overlay" src="<?php echo htmlspecialchars($eventData['logo_path']); ?>" alt="Event Logo">
+        <img id="event-logo" src="<?php echo htmlspecialchars($eventData['logo_path']); ?>" alt="Event Logo">
     <?php endif; ?>
 
     <div id="meta-box" class="overlay">
