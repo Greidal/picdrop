@@ -5,6 +5,13 @@ require_once 'db.php';
 $eventId = $_GET['event'] ?? '';
 $eventName = getEventOrDie($conn, $eventId);
 
+// load event setting whether the "bar" (drink) button should be shown
+$stmt2 = $conn->prepare("SELECT setting_show_bar FROM events WHERE uuid = ?");
+$stmt2->bind_param("s", $eventId);
+$stmt2->execute();
+$row = $stmt2->get_result()->fetch_assoc();
+$showBar = isset($row['setting_show_bar']) ? boolval($row['setting_show_bar']) : true;
+
 $prefilledName = "";
 if (isLoggedIn()) {
     $prefilledName = $_SESSION['username'] ?? '';
@@ -232,9 +239,11 @@ require 'header.php';
             <input id="inp-gal" type="file" name="image" accept="image/*" class="hidden" onchange="submitForm('form-gal', this)">
         </form>
 
-        <div style="margin-top: 40px;">
-            <button onclick="toggleView()" class="btn btn-small" style="background:#222; border:1px solid #444; color:#888;">🍸 Getränk einchecken</button>
-        </div>
+        <?php if ($showBar): ?>
+            <div style="margin-top: 40px;">
+                <button onclick="toggleView()" class="btn btn-small" style="background:#222; border:1px solid #444; color:#888;">🍸 Getränk einchecken</button>
+            </div>
+        <?php endif; ?>
     </div>
 
     <div id="view-bar" class="hidden">

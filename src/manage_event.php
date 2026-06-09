@@ -48,12 +48,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $s_badge = isset($_POST['s_badge']) ? 1 : 0;
         $s_uploader = isset($_POST['s_uploader']) ? 1 : 0;
         $s_time = isset($_POST['s_time']) ? 1 : 0;
+        $s_bar = isset($_POST['s_bar']) ? 1 : 0;
         $s_evtname = isset($_POST['s_evtname']) ? 1 : 0;
         $s_merge = isset($_POST['s_merge']) ? 1 : 0;
         $s_duration = intval($_POST['s_duration']);
 
-        $upd = $conn->prepare("UPDATE events SET setting_show_badge=?, setting_show_uploader=?, setting_show_time=?, setting_show_event_name=?, setting_merge_by_device=?, setting_slide_duration=? WHERE uuid=?");
-        $upd->bind_param("iiiiiis", $s_badge, $s_uploader, $s_time, $s_evtname, $s_merge, $s_duration, $uuid);
+        $upd = $conn->prepare("UPDATE events SET setting_show_badge=?, setting_show_uploader=?, setting_show_time=?, setting_show_event_name=?, setting_show_bar=?, setting_merge_by_device=?, setting_slide_duration=? WHERE uuid=?");
+        $upd->bind_param("iiiiiiis", $s_badge, $s_uploader, $s_time, $s_evtname, $s_bar, $s_merge, $s_duration, $uuid);
 
         if ($upd->execute()) {
             setFlashMessage("Einstellungen gespeichert!", "success");
@@ -305,6 +306,10 @@ require 'header.php';
                 <label class="toggle-switch">
                     <input type="checkbox" name="s_evtname" <?php if ($event['setting_show_event_name']) echo 'checked'; ?>>
                     <span class="slider"></span> Event-Name anzeigen
+                </label>
+                <label class="toggle-switch">
+                    <input type="checkbox" name="s_bar" <?php if (!empty($event['setting_show_bar'])) echo 'checked'; ?>>
+                    <span class="slider"></span> Getränk-Button auf der Upload-Seite anzeigen
                 </label>
             </div>
 
