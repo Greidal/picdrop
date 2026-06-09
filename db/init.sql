@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS `events` (
   `uuid` VARCHAR(36) NOT NULL,
   `name` VARCHAR(100) NOT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `logo_path` VARCHAR(255) DEFAULT NULL,
   `setting_show_badge` TINYINT(1) DEFAULT 1,
   `setting_show_uploader` TINYINT(1) DEFAULT 1,
   `setting_show_time` TINYINT(1) DEFAULT 1,

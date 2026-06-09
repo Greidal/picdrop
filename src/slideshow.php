@@ -5,7 +5,7 @@ requireLogin();
 $eventId = $_GET['event'] ?? die("Missing Event ID");
 checkEventAccess($conn, $eventId);
 
-$stmt = $conn->prepare("SELECT name, setting_show_badge, setting_show_uploader, setting_show_time, setting_show_event_name, setting_slide_duration FROM events WHERE uuid = ?");
+$stmt = $conn->prepare("SELECT name, logo_path, setting_show_badge, setting_show_uploader, setting_show_time, setting_show_event_name, setting_slide_duration FROM events WHERE uuid = ?");
 $stmt->bind_param("s", $eventId);
 $stmt->execute();
 $eventData = $stmt->get_result()->fetch_assoc();
@@ -116,6 +116,19 @@ $eventData = $stmt->get_result()->fetch_assoc();
             overflow: hidden;
         }
 
+        #event-logo {
+            top: 30px;
+            left: 30px;
+            width: 120px;
+            height: auto;
+            object-fit: contain;
+            z-index: 15;
+            pointer-events: none;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.25);
+            padding: 6px;
+        }
+
         .floater {
             position: absolute;
             bottom: -50px;
@@ -150,6 +163,10 @@ $eventData = $stmt->get_result()->fetch_assoc();
     <div id="reaction-layer"></div>
 
     <div id="badge" class="overlay">NEU!</div>
+
+    <?php if (!empty($eventData['logo_path'])): ?>
+        <img id="event-logo" class="overlay" src="<?php echo htmlspecialchars($eventData['logo_path']); ?>" alt="Event Logo">
+    <?php endif; ?>
 
     <div id="meta-box" class="overlay">
         <span id="meta-label">Foto von</span>

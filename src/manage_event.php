@@ -61,6 +61,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    if (isset($_POST['delete_logo'])) {
+        $stmt = $conn->prepare("SELECT logo_path FROM events WHERE uuid = ?");
+        $stmt->bind_param("s", $uuid);
+        $stmt->execute();
+        $r = $stmt->get_result()->fetch_assoc();
+        if ($r && $r['logo_path'] && file_exists($r['logo_path'])) {
+            @unlink($r['logo_path']);
+        }
+        $upd = $conn->prepare("UPDATE events SET logo_path = NULL WHERE uuid = ?");
+        $upd->bind_param("s", $uuid);
+        $upd->execute();
+
+        setFlashMessage("Logo entfernt.", "success");
+        redirectSelf($uuid);
+    }
+
+    if (isset($_FILES['event_logo']) && isset($_POST['update_settings'])) {
+        if ($_FILES['event_logo']['error'] !== UPLOAD_ERR_NO_FILE) {
+            $targetDir = "uploads/$uuid/";
+            if (!is_dir($targetDir)) mkdir($targetDir, 0777, true);
+
+            $fileName = time() . "_" . basename($_FILES['event_logo']['name']);
+            $targetFile = $targetDir . $fileName;
+
+            if (move_uploaded_file($_FILES['event_logo']['tmp_name'], $targetFile)) {
+                $upd = $conn->prepare("UPDATE events SET logo_path = ? WHERE uuid = ?");
+                $upd->bind_param("ss", $targetFile, $uuid);
+                $upd->execute();
+
+                setFlashMessage("Logo hochgeladen!", "success");
+                redirectSelf($uuid);
+            } else {
+                $msg = "Fehler beim Upload des Logos.";
+                $msgClass = "error";
+            }
+        }
+    }
+
     if (isset($_POST['invite_email'])) {
         $email = trim($_POST['invite_email']);
 
@@ -177,6 +215,15 @@ $stmt->bind_param("s", $uuid);
 $stmt->execute();
 $event = $stmt->get_result()->fetch_assoc();
 
+// Ensure logo_path column exists (safe attempt for existing DBs)
+if (!array_key_exists('logo_path', $event)) {
+    @$conn->query("ALTER TABLE events ADD COLUMN logo_path VARCHAR(255) DEFAULT NULL");
+    $stmt = $conn->prepare("SELECT * FROM events WHERE uuid = ?");
+    $stmt->bind_param("s", $uuid);
+    $stmt->execute();
+    $event = $stmt->get_result()->fetch_assoc();
+}
+
 $appUrl = (isset($_SERVER['HTTPS']) ? "https" : "http") . "://$_SERVER[HTTP_HOST]" . dirname($_SERVER['PHP_SELF']) . "/?event=" . $uuid;
 $pageTitle = "Verwalten: " . $event['name'];
 require 'header.php';
@@ -225,7 +272,7 @@ require 'header.php';
 
     <div class="card">
         <h3>Slideshow-Einstellungen</h3>
-        <form method="post">
+        <form method="post" enctype="multipart/form-data">
             <input type="hidden" name="update_settings" value="1">
 
             <div class="grid" style="grid-template-columns: 1fr 1fr;">
@@ -264,6 +311,21 @@ require 'header.php';
             <div style="margin-top:15px;">
                 <label>Anzeigedauer pro Bild (ms):</label>
                 <input type="number" name="s_duration" value="<?php echo $event['setting_slide_duration']; ?>" min="2000" step="500">
+            </div>
+
+            <div style="margin-top:15px;">
+                <label>Event-Logo (oben links, optional)</label>
+                <?php if (!empty($event['logo_path'])): ?>
+                    <div style="display:flex; gap:10px; align-items:center; margin-bottom:8px;">
+                        <img src="<?php echo htmlspecialchars($event['logo_path']); ?>" style="height:60px; object-fit:contain; border-radius:6px; border:1px solid #333; background:#000;">
+                        <form method="post" style="display:inline;">
+                            <input type="hidden" name="delete_logo" value="1">
+                            <button class="btn btn-danger btn-small" style="height:36px;">Logo entfernen</button>
+                        </form>
+                    </div>
+                <?php endif; ?>
+                <input type="file" name="event_logo" accept="image/*">
+                <small style="color:#888; display:block; margin-top:6px;">Max. 2MB empfohlen. Akzeptiert PNG/JPG.</small>
             </div>
 
             <button type="submit" class="btn btn-primary btn-small" style="margin-top:15px;">Speichern</button>
