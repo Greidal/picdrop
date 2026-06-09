@@ -21,6 +21,8 @@ function picdropSchemaStatements(): array
   `uuid` VARCHAR(36) NOT NULL,
   `name` VARCHAR(100) NOT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `logo_path` VARCHAR(255) DEFAULT NULL,
+  `setting_show_bar` TINYINT(1) DEFAULT 1,
   `setting_show_badge` TINYINT(1) DEFAULT 1,
   `setting_show_uploader` TINYINT(1) DEFAULT 1,
   `setting_show_time` TINYINT(1) DEFAULT 1,
@@ -109,21 +111,41 @@ function picdropEnsureSchema(mysqli $conn): void
   PRIMARY KEY (`version`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
 
-    if (picdropDatabaseSchemaVersionExists($conn, 1)) {
-        // Schema already initialized, but still create bootstrap admin user if needed
-        picdropCreateBootstrapAdminUser($conn);
-        return;
-    }
-
+  // Apply initial schema if not present
+  if (!picdropDatabaseSchemaVersionExists($conn, 1)) {
     foreach (picdropSchemaStatements() as $sql) {
-        $conn->query($sql);
+      $conn->query($sql);
     }
-
     $stmt = $conn->prepare("INSERT IGNORE INTO `schema_migrations` (`version`) VALUES (1)");
     $stmt->execute();
+  }
 
-    // Create bootstrap admin user after schema is initialized
-    picdropCreateBootstrapAdminUser($conn);
+  // Apply incremental migrations
+  picdropApplyMigrations($conn);
+
+  // Create bootstrap admin user after schema is initialized
+  picdropCreateBootstrapAdminUser($conn);
+}
+
+function picdropApplyMigrations(mysqli $conn): void
+{
+  $migrations = [
+    2 => [
+      "ALTER TABLE events ADD COLUMN IF NOT EXISTS logo_path VARCHAR(255) DEFAULT NULL",
+      "ALTER TABLE events ADD COLUMN IF NOT EXISTS setting_show_bar TINYINT(1) DEFAULT 1"
+    ]
+  ];
+
+  foreach ($migrations as $version => $stmts) {
+    if (!picdropDatabaseSchemaVersionExists($conn, $version)) {
+      foreach ($stmts as $sql) {
+        $conn->query($sql);
+      }
+      $stmt = $conn->prepare("INSERT IGNORE INTO `schema_migrations` (`version`) VALUES (?)");
+      $stmt->bind_param("i", $version);
+      $stmt->execute();
+    }
+  }
 }
 
 function picdropCreateBootstrapAdminUser(mysqli $conn): void

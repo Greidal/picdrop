@@ -216,15 +216,6 @@ $stmt->bind_param("s", $uuid);
 $stmt->execute();
 $event = $stmt->get_result()->fetch_assoc();
 
-// Ensure logo_path column exists (safe attempt for existing DBs)
-if (!array_key_exists('logo_path', $event)) {
-    @$conn->query("ALTER TABLE events ADD COLUMN logo_path VARCHAR(255) DEFAULT NULL");
-    $stmt = $conn->prepare("SELECT * FROM events WHERE uuid = ?");
-    $stmt->bind_param("s", $uuid);
-    $stmt->execute();
-    $event = $stmt->get_result()->fetch_assoc();
-}
-
 $appUrl = (isset($_SERVER['HTTPS']) ? "https" : "http") . "://$_SERVER[HTTP_HOST]" . dirname($_SERVER['PHP_SELF']) . "/?event=" . $uuid;
 $pageTitle = "Verwalten: " . $event['name'];
 require 'header.php';
