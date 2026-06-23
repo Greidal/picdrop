@@ -1,0 +1,43 @@
+branches:
+  - main
+  - master
+plugins:
+  - - "@semantic-release/commit-analyzer"
+    - preset: angular
+      releaseRules:
+        - type: FEAT
+          release: minor
+        - type: FIX
+          release: patch
+        - type: REFAC
+          release: patch
+        - type: feat
+          release: minor
+        - type: fix
+          release: patch
+
+  - - "@semantic-release/release-notes-generator"
+    - preset: angular
+      presetConfig:
+        types:
+          - type: FEAT
+            section: Features
+          - type: feat
+            section: Features
+          - type: FIX
+            section: Bug Fixes
+          - type: fix
+            section: Bug Fixes
+          - type: REFAC
+            section: Code Refactoring
+          - type: chore
+            hidden: true
+
+  - "@semantic-release/changelog"
+
+  - - "@semantic-release/git"
+    - assets:
+      - CHANGELOG.md
+      message: "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+
+  - "@semantic-release/github"
