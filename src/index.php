@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $banCheck->bind_param("ss", $eventId, $deviceUuid);
         $banCheck->execute();
         if ($banCheck->get_result()->num_rows > 0) {
-            die("⛔ Dein Gerät wurde für dieses Event gesperrt. Wende dich an den Arschdmin.");
+            die("⛔ Dein Gerät wurde für dieses Event gesperrt. Wende dich an den Organisator der Veranstaltung.");
         }
     }
 
@@ -212,10 +212,10 @@ require 'header.php';
 </style>
 
 <div class="container text-center">
-    <?php if ($msg): ?><div class="msg <?php echo $msgClass; ?>"><?php echo $msg; ?></div><?php endif; ?>
+    <?php if ($msg): ?>
+        <div class="msg <?php echo $msgClass; ?>"><?php echo $msg; ?></div><?php endif; ?>
 
-    <input type="text" id="uploader-name"
-        placeholder="Dein Name (optional)"
+    <input type="text" id="uploader-name" placeholder="Dein Name (optional)"
         value="<?php echo htmlspecialchars($prefilledName); ?>"
         style="text-align:center; font-size:1.2rem; max-width: 300px; border: 2px solid #333;">
 
@@ -228,20 +228,25 @@ require 'header.php';
             <input type="hidden" name="device_uuid" class="hidden-device-id">
 
             <label for="inp-cam" class="btn btn-primary">Kamera öffnen 📸</label>
-            <input id="inp-cam" type="file" name="image" accept="image/*" capture="environment" class="hidden" onchange="submitForm('form-cam', this)">
+            <input id="inp-cam" type="file" name="image" accept="image/*" capture="environment" class="hidden"
+                onchange="submitForm('form-cam', this)">
         </form>
 
         <form method="post" enctype="multipart/form-data" id="form-gal">
             <input type="hidden" name="uploader" class="hidden-uploader">
             <input type="hidden" name="device_uuid" class="hidden-device-id">
 
-            <label for="inp-gal" class="btn btn-secondary" style="margin-top:15px; display:block; margin-left:auto; margin-right:auto; max-width:300px;">Aus Galerie wählen 🖼️</label>
-            <input id="inp-gal" type="file" name="image" accept="image/*" class="hidden" onchange="submitForm('form-gal', this)">
+            <label for="inp-gal" class="btn btn-secondary"
+                style="margin-top:15px; display:block; margin-left:auto; margin-right:auto; max-width:300px;">Aus
+                Galerie wählen 🖼️</label>
+            <input id="inp-gal" type="file" name="image" accept="image/*" class="hidden"
+                onchange="submitForm('form-gal', this)">
         </form>
 
         <?php if ($showBar): ?>
             <div style="margin-top: 40px;">
-                <button onclick="toggleView()" class="btn btn-small" style="background:#222; border:1px solid #444; color:#888;">🍸 Getränk einchecken</button>
+                <button onclick="toggleView()" class="btn btn-small"
+                    style="background:#222; border:1px solid #444; color:#888;">🍸 Getränk einchecken</button>
             </div>
         <?php endif; ?>
     </div>
@@ -269,7 +274,8 @@ require 'header.php';
             <input type="hidden" name="device_uuid" class="hidden-device-id">
 
             <label for="inp-bar-cam" class="btn btn-primary" style="margin-top:20px;">📸 Beweisfoto machen</label>
-            <input id="inp-bar-cam" type="file" name="image" accept="image/*" capture="environment" class="hidden" onchange="submitForm('form-bar', this)">
+            <input id="inp-bar-cam" type="file" name="image" accept="image/*" capture="environment" class="hidden"
+                onchange="submitForm('form-bar', this)">
         </form>
 
         <div style="margin-top: 30px;">

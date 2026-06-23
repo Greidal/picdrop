@@ -29,7 +29,8 @@ function sendVerificationMail($toEmail, $token)
         $baseUrl = (isset($_SERVER['HTTPS']) ? "https" : "http") . "://$_SERVER[HTTP_HOST]" . dirname($_SERVER['PHP_SELF']);
         $verifyLink = $baseUrl . "/verify.php?token=" . $token;
 
-        $mail->Subject = 'Bitte bestätige deinen Kamerarsch Account 📸';
+        $pageTitle = getenv('PAGE_TITLE') ?: 'Kamerarsch';
+        $mail->Subject = 'Bitte bestätige deinen ' . $pageTitle . ' Account 📸';
         $mail->Body    = "
             <h1>Willkommen zur Party! 🥳</h1>
             <p>Bitte klicke auf den Link unten, um deinen Account zu aktivieren:</p>
