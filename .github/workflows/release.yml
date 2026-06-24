@@ -128,10 +128,17 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
+            # Standard-Tags for each Push
             type=ref,event=branch
             type=sha
+
+            # Latest-Tag (only on default branch, e.g. main)
             type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=v${{ needs.release.outputs.new_release_version }},enable=${{ needs.release.outputs.new_release_published == 'true' }}
+
+            # SemVer-Tags (only when Semantic Release builds a new version)
+            type=semver,pattern=v{{version}},value=${{ needs.release.outputs.new_release_version }},enable=${{ needs.release.outputs.new_release_published == 'true' }}
+            type=semver,pattern=v{{major}}.{{minor}},value=${{ needs.release.outputs.new_release_version }},enable=${{ needs.release.outputs.new_release_published == 'true' }}
+            type=semver,pattern=v{{major}},value=${{ needs.release.outputs.new_release_version }},enable=${{ needs.release.outputs.new_release_published == 'true' }}
 
       - name: Create manifest list and push
         working-directory: /tmp/digests
