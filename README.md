@@ -18,7 +18,8 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
 ```
 ├── Dockerfile                 # Multi-stage build (Composer deps + PHP/Apache runtime)
 ├── docker-compose.yml         # Production-style stack (app + MariaDB, Traefik labels)
-├── composer.json / .lock      # PHP dependencies (PHPMailer, QR code generator, PHPStan)
+├── composer.json / .lock      # PHP dependencies (PHPMailer, QR code generator, PHPStan, PHPUnit)
+├── tests/                     # PHPUnit tests
 ├── docker/
 │   ├── apache.conf            # Security headers, blocks lib/ and script execution in uploads/
 │   ├── php.ini                # Upload limits, session hardening, OPcache
@@ -32,6 +33,7 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
     │   ├── helpers.php        # Escaping, CSRF, UUIDs, safe image uploads
     │   ├── images.php         # Thumbnail / display-size variants
     │   ├── mail.php           # E-mails via PHPMailer
+    │   ├── metadata.php       # Lossless removal of GPS/location data from photos
     │   ├── migrate.php        # CLI migration runner
     │   └── migrations.php     # Migration logic + bootstrap admin
     ├── index.php              # Guest upload page (per event)
@@ -56,7 +58,8 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
    docker compose up -d
    ```
    The provided `docker-compose.yml` expects an external `traefik` network. For a local test without
-   Traefik, add `ports: ["8080:80"]` to the `picdrop` service and open http://localhost:8080.
+   Traefik, add `ports: ["8080:8080"]` to the `picdrop` service and open http://localhost:8080.
+   The container listens on port **8080** (it runs without root).
 
 ### Configuration
 
@@ -83,20 +86,32 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
 composer install      # dependencies incl. PHPStan
 composer lint         # php -l on all files
 composer analyse      # PHPStan
+composer test         # PHPUnit
 composer migrate      # apply migrations against DB_* from the environment
 ```
 
 ## CI/CD
-- `.github/workflows/ci.yml` (pull requests): Composer validate/audit, PHP lint, PHPStan, migration
-  test against MariaDB, Hadolint and a Docker build smoke test.
+- `.github/workflows/ci.yml` (pull requests): Composer validate/audit, PHP lint, PHPStan, PHPUnit,
+  migration test against MariaDB, Hadolint, a Docker build and a smoke test of the hardened container.
 - `.github/workflows/release.yml` (push to `main`): runs CI, then semantic-release (version + changelog)
   and publishes a multi-arch image (`linux/amd64`, `linux/arm64`) to `ghcr.io/<owner>/<repo>`.
 - Dependabot keeps Composer packages, Docker images and GitHub Actions up to date (weekly).
+  MariaDB major/minor upgrades are excluded on purpose — upgrade between LTS versions deliberately.
 
 ## Security Notes
 - Use strong, unique values for all passwords and the registration code; never commit `.env`.
 - Uploaded files are validated by content, stored under random names and can't be executed.
 - All state-changing forms are CSRF-protected; logins are throttled per account.
+- Optional per event: GPS/location data is removed from uploaded photos (lossless; JPEG, PNG, WebP).
+
+### Container hardening
+- Apache/PHP run as `www-data` (UID 33) on port 8080; application code is owned by root and read-only.
+- No setuid/setgid binaries; PHP has shell functions and remote file access disabled and is
+  restricted to `/var/www` and `/tmp` (`open_basedir`).
+- `docker-compose.yml` runs the app with a read-only root filesystem (tmpfs for `/tmp`), all Linux
+  capabilities dropped, `no-new-privileges`, PID/memory limits and rotated logs.
+- The database only sits on an internal network without internet access and keeps just the
+  capabilities its entrypoint needs.
 
 ## License
 Brought to you by [Klimarschanlage Vertrieb Ltd](https://klimarschanlage.de). Contact our [team via mail](mailto:vertrieb@klimarschanlage.de) for licensing information, help or to thank them for their incredible work.
