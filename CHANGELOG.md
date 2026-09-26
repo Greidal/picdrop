@@ -1,3 +1,15 @@
+# [0.3.0](https://github.com/Greidal/picdrop/compare/v0.2.3...v0.3.0) (2026-09-26)
+
+
+### Bug Fixes
+
+* **security:** harden app against RCE, SQL injection, XSS and CSRF ([4f25807](https://github.com/Greidal/picdrop/commit/4f258073d3d05264b1d12519ae13fb85db629ff1))
+
+
+### Features
+
+* **gallery:** serve thumbnails and display-size images instead of ([1cde1d9](https://github.com/Greidal/picdrop/commit/1cde1d9269b3990c1ecde0cabb17d3ccdf8cbc47))
+
 ## [0.2.3](https://github.com/Greidal/picdrop/compare/v0.2.2...v0.2.3) (2026-06-23)
 
 
