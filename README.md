@@ -10,96 +10,93 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
 - **Leaderboard**: Track and display top users or event participants.
 - **Admin Panel**: Manage users, events, and gallery content.
 - **Email Notifications**: Uses PHPMailer for sending emails (e.g., verification, notifications).
-- **Download as ZIP**: Download selected images as a ZIP archive.
+- **Download as ZIP**: Download all images of an event (plus a CSV export) as a ZIP archive.
 - **Configurable via Docker**: Includes Docker and Docker Compose setup for easy deployment.
 
 ## Project Structure
 
 ```
-├── docker-compose.yml         # Docker Compose configuration
-├── Dockerfile                 # Dockerfile for PHP/Apache
-├── uploads.ini                # PHP upload settings
-├── db/
-│   └── init.sql               # Database initialization script
-└── src/
-    ├── admin.php              # Admin interface
-    ├── auth.php               # Authentication logic
-    ├── bootstrap.php          # Authentication logic
-    ├── composer.json          # Authentication logic
-    ├── config.php             # Configuration (DB, settings)
-    ├── db.php                 # Database connection
-    ├── download_zip.php       # Download images as ZIP
-    ├── gallery.php            # Gallery display logic
-    ├── get_images.php         # Fetch images for gallery
-    ├── header.php             # Common header for pages
-    ├── index.php              # Main landing page
-    ├── info.php               # Info/about page
-    ├── leaderboard.php        # Leaderboard logic
-    ├── login.php              # Login page
-    ├── logout.php             # Logout logic
-    ├── mail_helper.php        # Email sending helper
-    ├── manage_event.php       # Event management
-    ├── register.php           # Registration page
-    ├── slideshow.php          # Slideshow view
-    ├── verify.php             # Email verification
-    └── libs/
-        └── PHPMailer/         # PHPMailer library (bundled)
+├── Dockerfile                 # Multi-stage build (Composer deps + PHP/Apache runtime)
+├── docker-compose.yml         # Production-style stack (app + MariaDB, Traefik labels)
+├── composer.json / .lock      # PHP dependencies (PHPMailer, QR code generator, PHPStan)
+├── docker/
+│   ├── apache.conf            # Security headers, blocks lib/ and script execution in uploads/
+│   ├── php.ini                # Upload limits, session hardening, OPcache
+│   └── entrypoint.sh          # Runs DB migrations, then starts Apache
+├── db/migrations/             # Versioned schema migrations (NNNN_name.sql / .php)
+└── src/                       # Web root
+    ├── lib/                   # Internal includes – never served over HTTP
+    │   ├── auth.php           # Sessions, login throttling, access checks
+    │   ├── config.php         # Configuration from environment variables
+    │   ├── db.php             # Database connection
+    │   ├── helpers.php        # Escaping, CSRF, UUIDs, safe image uploads
+    │   ├── images.php         # Thumbnail / display-size variants
+    │   ├── mail.php           # E-mails via PHPMailer
+    │   ├── migrate.php        # CLI migration runner
+    │   └── migrations.php     # Migration logic + bootstrap admin
+    ├── index.php              # Guest upload page (per event)
+    ├── admin.php              # Dashboard
+    ├── manage_event.php       # Event settings, drinks, invites
+    ├── manage_guests.php      # Block devices / remove spam
+    ├── gallery.php, slideshow.php, leaderboard.php
+    ├── image.php              # Serves (and lazily creates) resized images
+    └── healthz.php            # Container health check
 ```
 
 ## Getting Started
 
 ### Prerequisites
-- [Docker](https://www.docker.com/get-started)
-- [Docker Compose](https://docs.docker.com/compose/)
+- [Docker](https://www.docker.com/get-started) with Docker Compose
 
 ### Setup & Run
 
-1. **Clone the repository:**
+1. Copy `example.env` to `.env` and fill in real values (DB passwords, SMTP, `APP_URL`, admin user).
+2. Start the stack:
    ```sh
-   git clone <repo-url>
-   cd picdrop
+   docker compose up -d
    ```
-2. **Configure Environment:**
-   - Edit `src/config.php` for database and site settings if needed.
-   - Adjust `uploads.ini` for upload limits if required.
-3. **Start the application:**
-   ```sh
-   docker-compose up --build
-   ```
-4. **Access the app:**
-   - Open [http://localhost:8080](http://localhost:8080) in your browser.
-   - Consider using reverse proxies such as Traefik (as used in the provided `docker-compose.yml`), nginx or the likes in production
+   The provided `docker-compose.yml` expects an external `traefik` network. For a local test without
+   Traefik, add `ports: ["8080:80"]` to the `picdrop` service and open http://localhost:8080.
 
-### Database
-- The application bootstraps its schema automatically on first connection if the tables are missing.
-- The MariaDB container still uses `MYSQL_DATABASE` to create the database itself on a fresh volume.
-- Default credentials and settings can be changed in `.env` (see `example.env`) and `src/config.php`.
+### Configuration
 
-## Email Setup
-- PHPMailer is installed via Composer from `src/composer.json` during image build.
-- For local legacy setups, `src/libs/PHPMailer/` is still supported as a fallback by `src/mail_helper.php`.
-- Configure SMTP settings in `src/mail_helper.php` and/or `src/config.php`.
-- Ensure your SMTP credentials are correct for email features to work.
+| Variable | Description |
+| --- | --- |
+| `APP_URL` | Public base URL, e.g. `https://picdrop.example.com`. Used for e-mail links and the QR code. |
+| `PAGE_TITLE` | Name shown in the browser title and e-mails. |
+| `REGISTRATION_CODE` | Code required for open sign-ups. **Empty = only invited users can register.** |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_EMAIL` | Creates an admin account on first start if all three are set. |
+| `DB_HOST` / `DB_USER` / `DB_PASS` / `DB_NAME` | Database connection. |
+| `SMTP_*` | Mail server settings (see `example.env`). |
+| `SKIP_MIGRATIONS=1` | Don't run migrations on container start. |
 
-## CI/CD (GHCR)
-- The workflow `.github/workflows/publish-ghcr.yml` builds and publishes a multi-arch image (`linux/amd64`, `linux/arm64`) to GHCR.
-- Target image name: `ghcr.io/<owner>/<repo>`.
-- Triggered on pushes to `main`/`master`, tags (`v*`), and manual runs.
+### Database migrations
+- Migrations in `db/migrations` are applied automatically when the container starts
+  (`php src/lib/migrate.php`), guarded by a DB lock so parallel starts are safe.
+- New change? Add the next file, e.g. `db/migrations/0005_add_something.sql`. Migrations must be
+  idempotent (`IF NOT EXISTS`, …) because MariaDB can't roll back DDL. For data migrations use a
+  `.php` file that returns `function (mysqli $conn): void { … }`.
 
-## Customization
-- **Events**: Use the admin panel to create and manage events.
-- **Gallery**: Upload and manage images via the web interface.
-- **Styling**: Customize the UI by editing CSS in the relevant PHP files or adding your own stylesheets.
+## Development
+
+```sh
+composer install      # dependencies incl. PHPStan
+composer lint         # php -l on all files
+composer analyse      # PHPStan
+composer migrate      # apply migrations against DB_* from the environment
+```
+
+## CI/CD
+- `.github/workflows/ci.yml` (pull requests): Composer validate/audit, PHP lint, PHPStan, migration
+  test against MariaDB, Hadolint and a Docker build smoke test.
+- `.github/workflows/release.yml` (push to `main`): runs CI, then semantic-release (version + changelog)
+  and publishes a multi-arch image (`linux/amd64`, `linux/arm64`) to `ghcr.io/<owner>/<repo>`.
+- Dependabot keeps Composer packages, Docker images and GitHub Actions up to date (weekly).
 
 ## Security Notes
-- Change default admin credentials after setup.
-- Use strong passwords for all users.
-- Consider enabling HTTPS in production.
-
-## Troubleshooting
-- Check Docker logs for errors: `docker-compose logs`
-- Ensure database container is running and accessible.
-- Verify SMTP settings for email functionality.
+- Use strong, unique values for all passwords and the registration code; never commit `.env`.
+- Uploaded files are validated by content, stored under random names and can't be executed.
+- All state-changing forms are CSRF-protected; logins are throttled per account.
 
 ## License
 Brought to you by [Klimarschanlage Vertrieb Ltd](https://klimarschanlage.de). Contact our [team via mail](mailto:vertrieb@klimarschanlage.de) for licensing information, help or to thank them for their incredible work.
