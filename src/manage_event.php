@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/lib/auth.php';
 require_once __DIR__ . '/lib/mail.php';
+require_once __DIR__ . '/lib/metadata.php';
 
 requireLogin();
 
@@ -52,12 +53,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $s_bar = isset($_POST['s_bar']) ? 1 : 0;
         $s_evtname = isset($_POST['s_evtname']) ? 1 : 0;
         $s_merge = isset($_POST['s_merge']) ? 1 : 0;
+        $s_strip = isset($_POST['s_strip_location']) ? 1 : 0;
         $s_duration = max(2000, min(600000, intval($_POST['s_duration'] ?? 8000)));
 
-        $upd = $conn->prepare("UPDATE events SET setting_show_badge=?, setting_show_uploader=?, setting_show_time=?, setting_show_event_name=?, setting_show_bar=?, setting_merge_by_device=?, setting_slide_duration=? WHERE uuid=?");
-        $upd->bind_param("iiiiiiis", $s_badge, $s_uploader, $s_time, $s_evtname, $s_bar, $s_merge, $s_duration, $uuid);
+        $prev = $conn->prepare("SELECT setting_strip_location FROM events WHERE uuid = ?");
+        $prev->bind_param("s", $uuid);
+        $prev->execute();
+        $wasStripping = !empty($prev->get_result()->fetch_assoc()['setting_strip_location']);
+
+        $upd = $conn->prepare("UPDATE events SET setting_show_badge=?, setting_show_uploader=?, setting_show_time=?, setting_show_event_name=?, setting_show_bar=?, setting_merge_by_device=?, setting_strip_location=?, setting_slide_duration=? WHERE uuid=?");
+        $upd->bind_param("iiiiiiiis", $s_badge, $s_uploader, $s_time, $s_evtname, $s_bar, $s_merge, $s_strip, $s_duration, $uuid);
 
         if ($upd->execute()) {
+            $savedMsg = "Einstellungen gespeichert!";
+            if ($s_strip && !$wasStripping) {
+                // Newly enabled: clean the photos that were uploaded before.
+                $counts = stripLocationFromEvent($conn, $uuid);
+                $savedMsg .= " Standortdaten aus {$counts[METADATA_STRIPPED]} vorhandenen Fotos entfernt.";
+                if ($counts[METADATA_UNSUPPORTED] + $counts[METADATA_FAILED] > 0) {
+                    $savedMsg .= " " . ($counts[METADATA_UNSUPPORTED] + $counts[METADATA_FAILED]) . " Fotos konnten nicht bearbeitet werden (z. B. HEIC).";
+                }
+            }
+
             if (isset($_FILES['event_logo']) && $_FILES['event_logo']['error'] !== UPLOAD_ERR_NO_FILE) {
                 $targetFile = storeUploadedImage($_FILES['event_logo'], "uploads/$uuid");
 
@@ -66,14 +83,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $logoStmt->bind_param("ss", $targetFile, $uuid);
                     $logoStmt->execute();
 
-                    setFlashMessage("Einstellungen gespeichert! Logo hochgeladen!", "success");
+                    setFlashMessage("$savedMsg Logo hochgeladen!", "success");
                     redirectSelf($uuid);
                 }
 
                 $msg = "Fehler beim Upload des Logos (erlaubt: JPG, PNG, WebP, GIF).";
                 $msgClass = "error";
             } else {
-                setFlashMessage("Einstellungen gespeichert!", "success");
+                setFlashMessage($savedMsg, "success");
                 redirectSelf($uuid);
             }
         }
@@ -305,6 +322,17 @@ require __DIR__ . '/lib/header.php';
                 <label class="toggle-switch">
                     <input type="checkbox" name="s_bar" <?php if (!empty($event['setting_show_bar'])) echo 'checked'; ?>>
                     <span class="slider"></span> Getränk-Button auf der Upload-Seite anzeigen
+                </label>
+                <label class="toggle-switch" style="grid-column: 1 / -1;">
+                    <input type="checkbox" name="s_strip_location" <?php if (!empty($event['setting_strip_location'])) echo 'checked'; ?>>
+                    <span class="slider"></span>
+                    <span>
+                        <strong>Standortdaten (GPS) aus Fotos entfernen</strong><br>
+                        <small style="color:#888; font-size:0.8em; display:block; margin-top:2px;">
+                            Entfernt GPS-Koordinaten aus hochgeladenen Fotos, ohne die Bildqualität zu verändern.
+                            Beim Aktivieren werden auch bereits hochgeladene Fotos bereinigt. HEIC-Dateien werden nicht unterstützt.
+                        </small>
+                    </span>
                 </label>
             </div>
 

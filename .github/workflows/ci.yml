@@ -43,6 +43,9 @@ jobs:
       - name: PHPStan
         run: composer analyse -- --no-progress --error-format=github
 
+      - name: Unit tests
+        run: composer test
+
   migrations:
     name: Database migrations
     runs-on: ubuntu-24.04

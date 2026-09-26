@@ -6,3 +6,4 @@
 .env
 .phpstan-cache
 .phpactor.json
+.phpunit.result.cache
