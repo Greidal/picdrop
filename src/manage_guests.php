@@ -1,6 +1,5 @@
 <?php
-require_once 'auth.php';
-require_once 'db.php';
+require_once __DIR__ . '/lib/auth.php';
 
 requireLogin();
 $uuid = $_GET['event'] ?? '';
@@ -8,8 +7,9 @@ checkEventAccess($conn, $uuid);
 $eventName = getEventOrDie($conn, $uuid);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $deviceToBan = $_POST['ban_device'] ?? '';
-    $deviceToUnban = $_POST['unban_device'] ?? '';
+    requireCsrf();
+    $deviceToBan = (string) ($_POST['ban_device'] ?? '');
+    $deviceToUnban = (string) ($_POST['unban_device'] ?? '');
     $deletePhotos = isset($_POST['delete_photos']) && $_POST['delete_photos'] == 1;
 
     if ($deviceToBan) {
@@ -20,11 +20,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $msg = "Gerät gesperrt.";
 
         if ($deletePhotos) {
-            $res = $conn->query("SELECT filename FROM uploads WHERE event_id='$uuid' AND device_uuid='$deviceToBan'");
-            while ($row = $res->fetch_assoc()) {
-                @unlink("uploads/$uuid/" . $row['filename']);
+            $sel = $conn->prepare("SELECT filename FROM uploads WHERE event_id = ? AND device_uuid = ?");
+            $sel->bind_param("ss", $uuid, $deviceToBan);
+            $sel->execute();
+            foreach ($sel->get_result() as $row) {
+                $file = __DIR__ . "/uploads/$uuid/" . basename($row['filename']);
+                if (is_file($file)) {
+                    unlink($file);
+                }
             }
-            $conn->query("DELETE FROM uploads WHERE event_id='$uuid' AND device_uuid='$deviceToBan'");
+            $del = $conn->prepare("DELETE FROM uploads WHERE event_id = ? AND device_uuid = ?");
+            $del->bind_param("ss", $uuid, $deviceToBan);
+            $del->execute();
             $msg .= " Alle Fotos dieses Geräts wurden gelöscht.";
         }
         setFlashMessage($msg, "success");
@@ -37,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         setFlashMessage("Gerät entsperrt.", "success");
     }
 
-    header("Location: manage_guests.php?event=$uuid");
+    header("Location: manage_guests.php?event=" . urlencode($uuid));
     exit;
 }
 
@@ -59,18 +66,18 @@ $stmt->execute();
 $guests = $stmt->get_result();
 
 $pageTitle = "Gäste verwalten - " . $eventName;
-require 'header.php';
+require __DIR__ . '/lib/header.php';
 ?>
 
 <div class="container">
     <div class="flex-between">
         <h1>👮 Gäste-Management</h1>
-        <a href="manage_event.php?event=<?php echo $uuid; ?>" class="btn btn-secondary btn-small">🔙 Event Einstellungen</a>
+        <a href="manage_event.php?event=<?php echo e($uuid); ?>" class="btn btn-secondary btn-small">🔙 Event Einstellungen</a>
     </div>
 
     <?php
     $flash = getFlashMessage();
-    if ($flash) echo "<div class='msg {$flash['type']}'>{$flash['text']}</div>";
+    if ($flash) echo renderMessage($flash['text'], $flash['type']);
     ?>
 
     <div class="card">
@@ -91,11 +98,11 @@ require 'header.php';
                     <?php while ($g = $guests->fetch_assoc()): ?>
                         <tr style="border-bottom:1px solid #222;">
                             <td style="padding:10px;">
-                                <?php echo htmlspecialchars($g['used_names'] ?: '(Ohne Name)'); ?>
+                                <?php echo e($g['used_names'] ?: '(Ohne Name)'); ?>
                                 <br>
-                                <small style="color:#555; font-family:monospace;"><?php echo substr($g['device_uuid'], 0, 15); ?>...</small>
+                                <small style="color:#555; font-family:monospace;"><?php echo e(mb_substr($g['device_uuid'], 0, 15)); ?>...</small>
                             </td>
-                            <td><strong><?php echo $g['total_uploads']; ?></strong></td>
+                            <td><strong><?php echo (int) $g['total_uploads']; ?></strong></td>
                             <td><?php echo date("d.m. H:i", strtotime($g['last_seen'])); ?></td>
                             <td>
                                 <?php if ($g['is_banned']): ?>
@@ -107,11 +114,12 @@ require 'header.php';
                             <td style="text-align:right;">
                                 <?php if ($g['is_banned']): ?>
                                     <form method="post" style="display:inline;">
-                                        <input type="hidden" name="unban_device" value="<?php echo $g['device_uuid']; ?>">
+                                        <?php echo csrfField(); ?>
+                                        <input type="hidden" name="unban_device" value="<?php echo e($g['device_uuid']); ?>">
                                         <button class="btn btn-secondary btn-small">🔓 Entsperren</button>
                                     </form>
                                 <?php else: ?>
-                                    <button onclick="confirmBan('<?php echo $g['device_uuid']; ?>', '<?php echo htmlspecialchars($g['used_names']); ?>')" class="btn btn-danger btn-small">🚫 Sperren</button>
+                                    <button data-device="<?php echo e($g['device_uuid']); ?>" data-names="<?php echo e($g['used_names']); ?>" onclick="confirmBan(this.dataset.device, this.dataset.names)" class="btn btn-danger btn-small">🚫 Sperren</button>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -129,6 +137,7 @@ require 'header.php';
         <p>Er wird keine neuen Fotos mehr hochladen können.</p>
 
         <form method="post">
+            <?php echo csrfField(); ?>
             <input type="hidden" name="ban_device" id="banInput">
 
             <label style="display:flex; align-items:center; margin:20px 0; cursor:pointer; background:#330000; padding:10px; border-radius:5px;">

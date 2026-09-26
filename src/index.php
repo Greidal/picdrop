@@ -1,6 +1,5 @@
 <?php
-require_once 'auth.php';
-require_once 'db.php';
+require_once __DIR__ . '/lib/auth.php';
 
 $eventId = $_GET['event'] ?? '';
 $eventName = getEventOrDie($conn, $eventId);
@@ -32,13 +31,14 @@ if ($flash) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $deviceUuid = $_POST['device_uuid'] ?? '';
+    $deviceUuid = mb_substr(trim((string) ($_POST['device_uuid'] ?? '')), 0, 64);
 
-    if (!empty($deviceUuid)) {
+    if ($deviceUuid !== '') {
         $banCheck = $conn->prepare("SELECT id FROM blocked_devices WHERE event_uuid = ? AND device_uuid = ?");
         $banCheck->bind_param("ss", $eventId, $deviceUuid);
         $banCheck->execute();
         if ($banCheck->get_result()->num_rows > 0) {
+            http_response_code(403);
             die("⛔ Dein Gerät wurde für dieses Event gesperrt. Wende dich an den Organisator der Veranstaltung.");
         }
     }
@@ -47,40 +47,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = $_FILES['image']['error'];
 
         if ($error === UPLOAD_ERR_OK) {
-            $uploader = htmlspecialchars(trim($_POST['uploader'] ?? ''));
+            $uploader = mb_substr(trim((string) ($_POST['uploader'] ?? '')), 0, 100);
             $drinkId = !empty($_POST['drink_id']) ? intval($_POST['drink_id']) : null;
 
-            if ($drinkId && empty($uploader)) {
-                $msg = "Wer trinkt das? Bitte Namen angeben!";
-                $msgClass = "error";
-            } else {
-                $uploadDir = 'uploads/' . $eventId . '/';
-                if (!is_dir($uploadDir)) {
-                    mkdir($uploadDir, 0777, true);
-                }
-
-                $fileName = time() . '_' . uniqid() . '.jpg';
-                $targetFile = $uploadDir . $fileName;
-
-                if (move_uploaded_file($_FILES['image']['tmp_name'], $targetFile)) {
-                    $stmt = $conn->prepare("INSERT INTO uploads (event_id, device_uuid, filename, uploader_name, drink_id) VALUES (?, ?, ?, ?, ?)");
-                    $stmt->bind_param("ssssi", $eventId, $deviceUuid, $fileName, $uploader, $drinkId);
-
-                    if ($stmt->execute()) {
-                        $txt = $drinkId ? "Prost! 🍻 Check-in erledigt!" : "Bild ist auf der Leinwand! 🥳";
-                        setFlashMessage($txt, "success");
-
-                        header("Location: index.php?event=" . $eventId);
-                        exit;
-                    } else {
-                        $msg = "Datenbank-Fehler.";
-                        $msgClass = "error";
-                    }
-                } else {
-                    $msg = "Fehler beim Speichern.";
-                    $msgClass = "error";
+            if ($drinkId) {
+                // Only accept drinks that belong to this event.
+                $drinkCheck = $conn->prepare("SELECT id FROM drinks WHERE id = ? AND event_uuid = ?");
+                $drinkCheck->bind_param("is", $drinkId, $eventId);
+                $drinkCheck->execute();
+                if ($drinkCheck->get_result()->num_rows === 0) {
+                    $drinkId = null;
                 }
             }
+
+            if ($drinkId && $uploader === '') {
+                $msg = "Wer trinkt das? Bitte Namen angeben!";
+                $msgClass = "error";
+            } elseif (!$storedPath = storeUploadedImage($_FILES['image'], __DIR__ . '/uploads/' . $eventId)) {
+                $msg = "Das ist leider kein gültiges Bild (erlaubt: JPG, PNG, WebP, GIF, HEIC).";
+                $msgClass = "error";
+            } else {
+                $fileName = basename($storedPath);
+                $deviceParam = $deviceUuid !== '' ? $deviceUuid : null;
+                $stmt = $conn->prepare("INSERT INTO uploads (event_id, device_uuid, filename, uploader_name, drink_id) VALUES (?, ?, ?, ?, ?)");
+                $stmt->bind_param("ssssi", $eventId, $deviceParam, $fileName, $uploader, $drinkId);
+                $stmt->execute();
+
+                $txt = $drinkId ? "Prost! 🍻 Check-in erledigt!" : "Bild ist auf der Leinwand! 🥳";
+                setFlashMessage($txt, "success");
+
+                header("Location: index.php?event=" . urlencode($eventId));
+                exit;
+            }
+        } elseif ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
+            $msg = "Das Bild ist zu groß.";
+            $msgClass = "error";
         } else {
             $msg = "Upload Fehler Code: " . $error;
             $msgClass = "error";
@@ -89,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $pageTitle = $eventName;
-require 'header.php';
+require __DIR__ . '/lib/header.php';
 ?>
 
 <style>
@@ -212,15 +213,14 @@ require 'header.php';
 </style>
 
 <div class="container text-center">
-    <?php if ($msg): ?>
-        <div class="msg <?php echo $msgClass; ?>"><?php echo $msg; ?></div><?php endif; ?>
+    <?php echo renderMessage($msg, $msgClass); ?>
 
     <input type="text" id="uploader-name" placeholder="Dein Name (optional)"
-        value="<?php echo htmlspecialchars($prefilledName); ?>"
+        value="<?php echo e($prefilledName); ?>"
         style="text-align:center; font-size:1.2rem; max-width: 300px; border: 2px solid #333;">
 
     <div id="view-main">
-        <h1><?php echo htmlspecialchars($eventName); ?></h1>
+        <h1><?php echo e($eventName); ?></h1>
         <p style="color:#888;">Das Bild landet direkt auf der Leinwand.</p>
 
         <form method="post" enctype="multipart/form-data" id="form-cam">
@@ -258,9 +258,9 @@ require 'header.php';
         <?php if ($drinks->num_rows > 0): ?>
             <div class="drink-grid">
                 <?php while ($d = $drinks->fetch_assoc()): ?>
-                    <div class="drink-card" onclick="selectDrink(<?php echo $d['id']; ?>, this)">
-                        <img src="<?php echo htmlspecialchars($d['image_path']); ?>" class="drink-img">
-                        <div class="drink-name"><?php echo htmlspecialchars($d['name']); ?></div>
+                    <div class="drink-card" onclick="selectDrink(<?php echo (int) $d['id']; ?>, this)">
+                        <img src="<?php echo e($d['image_path']); ?>" class="drink-img">
+                        <div class="drink-name"><?php echo e($d['name']); ?></div>
                     </div>
                 <?php endwhile; ?>
             </div>
@@ -382,7 +382,7 @@ require 'header.php';
         }
         const formData = new FormData();
         formData.append('emoji', emoji);
-        fetch('reaction_api.php?action=send&event=<?php echo $eventId; ?>', {
+        fetch('reaction_api.php?action=send&event=' + encodeURIComponent(<?php echo json_encode($eventId); ?>), {
             method: 'POST',
             body: formData
         });

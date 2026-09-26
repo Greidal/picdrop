@@ -1,8 +1,4 @@
-CREATE DATABASE IF NOT EXISTS `fotobox` 
-CHARACTER SET utf8mb4 
-COLLATE utf8mb4_general_ci;
-
-USE `fotobox`;
+-- Initial schema (formerly db/init.sql / src/bootstrap.php).
 
 CREATE TABLE IF NOT EXISTS `users` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
@@ -17,7 +13,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `idx_unique_username` (`username`),
   UNIQUE KEY `idx_unique_email` (`email`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS `events` (
   `uuid` VARCHAR(36) NOT NULL,
@@ -32,7 +28,7 @@ CREATE TABLE IF NOT EXISTS `events` (
   `setting_slide_duration` INT(11) DEFAULT 8000,
   `setting_merge_by_device` TINYINT(1) DEFAULT 1,
   PRIMARY KEY (`uuid`)
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS `drinks` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
@@ -43,7 +39,7 @@ CREATE TABLE IF NOT EXISTS `drinks` (
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   CONSTRAINT `fk_drinks_event` FOREIGN KEY (`event_uuid`) REFERENCES `events` (`uuid`) ON DELETE CASCADE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS `event_invites` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
@@ -54,7 +50,7 @@ CREATE TABLE IF NOT EXISTS `event_invites` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `idx_event_email` (`event_uuid`, `email`),
   CONSTRAINT `fk_invites_event` FOREIGN KEY (`event_uuid`) REFERENCES `events` (`uuid`) ON DELETE CASCADE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS `event_users` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
@@ -64,7 +60,7 @@ CREATE TABLE IF NOT EXISTS `event_users` (
   UNIQUE KEY `idx_unique_access` (`event_uuid`, `user_id`),
   CONSTRAINT `fk_event_users_event` FOREIGN KEY (`event_uuid`) REFERENCES `events` (`uuid`) ON DELETE CASCADE,
   CONSTRAINT `fk_event_users_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS `uploads` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
@@ -78,7 +74,7 @@ CREATE TABLE IF NOT EXISTS `uploads` (
   KEY `idx_device_uuid` (`device_uuid`),
   CONSTRAINT `fk_uploads_event` FOREIGN KEY (`event_id`) REFERENCES `events` (`uuid`) ON DELETE CASCADE,
   CONSTRAINT `fk_uploads_drink` FOREIGN KEY (`drink_id`) REFERENCES `drinks` (`id`) ON DELETE SET NULL
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS `blocked_devices` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
@@ -88,7 +84,7 @@ CREATE TABLE IF NOT EXISTS `blocked_devices` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `idx_block_unique` (`event_uuid`, `device_uuid`),
   CONSTRAINT `fk_blocked_event` FOREIGN KEY (`event_uuid`) REFERENCES `events` (`uuid`) ON DELETE CASCADE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE IF NOT EXISTS `live_reactions` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
@@ -98,4 +94,5 @@ CREATE TABLE IF NOT EXISTS `live_reactions` (
   PRIMARY KEY (`id`),
   INDEX `idx_poll` (`event_uuid`, `id`),
   CONSTRAINT `fk_reactions_event` FOREIGN KEY (`event_uuid`) REFERENCES `events` (`uuid`) ON DELETE CASCADE
-);
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+

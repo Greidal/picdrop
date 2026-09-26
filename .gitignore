@@ -1,4 +1,7 @@
+/vendor
 /src/libs
 /src/vendor
+/src/uploads
 
 .env
+.phpstan-cache

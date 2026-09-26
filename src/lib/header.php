@@ -4,8 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <?php $globalTitle = getenv('PAGE_TITLE') ?: 'Kamerarsch'; ?>
-    <title><?php echo isset($pageTitle) ? htmlspecialchars($pageTitle) : htmlspecialchars($globalTitle); ?></title>
+    <title><?php echo e($pageTitle ?? PAGE_TITLE); ?></title>
     <link rel="icon" href="favicon.png" type="image/png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>

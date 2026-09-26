@@ -3,6 +3,9 @@ services:
     image: ghcr.io/greidal/picdrop:latest
     container_name: picdrop
     restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     volumes:
       - picdrop_uploads:/var/www/html/uploads
     environment:
@@ -20,7 +23,9 @@ services:
       SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL}
       SMTP_FROM_NAME: ${SMTP_FROM_NAME:-PicDrop Fotobox}
       # Application Configuration
-      REGISTRATION_CODE: ${REGISTRATION_CODE}
+      APP_URL: ${APP_URL:-https://picdrop.klimarschanlage.de}
+      PAGE_TITLE: ${PAGE_TITLE:-Kamerarsch}
+      REGISTRATION_CODE: ${REGISTRATION_CODE:-}
       # Bootstrap Admin User (all required for admin creation)
       ADMIN_USERNAME: ${ADMIN_USERNAME}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}
@@ -45,8 +50,16 @@ services:
       MYSQL_DATABASE: fotobox
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      # Runs mariadb-upgrade automatically after image version bumps.
+      MARIADB_AUTO_UPGRADE: "1"
     volumes:
       - picdrop_db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
 networks:
   traefik:

@@ -1,0 +1,27 @@
+{
+    "name": "picdrop/app",
+    "description": "PicDrop photo gallery application",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": ">=8.4",
+        "ext-fileinfo": "*",
+        "ext-mbstring": "*",
+        "ext-mysqli": "*",
+        "ext-zip": "*",
+        "chillerlan/php-qrcode": "^6.0",
+        "phpmailer/phpmailer": "^7.1"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^2.2"
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    },
+    "scripts": {
+        "lint": "find src db -name '*.php' -not -path 'src/libs/*' -print0 | xargs -0 -n1 php -l",
+        "analyse": "phpstan analyse --memory-limit=1G",
+        "migrate": "php src/lib/migrate.php"
+    }
+}

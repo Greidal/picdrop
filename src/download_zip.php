@@ -1,10 +1,7 @@
 <?php
-require_once 'auth.php';
+require_once __DIR__ . '/lib/auth.php';
 requireLogin();
 
-ini_set('display_errors', 0);
-
-$userId = getCurrentUserId();
 $uuid = $_GET['event'] ?? '';
 checkEventAccess($conn, $uuid);
 
@@ -20,17 +17,24 @@ if ($zip->open($zipFile, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== TRUE) {
 
 if (is_dir($sourceDir)) {
     $files = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($sourceDir),
+        new RecursiveDirectoryIterator($sourceDir, RecursiveDirectoryIterator::SKIP_DOTS),
         RecursiveIteratorIterator::LEAVES_ONLY
     );
 
     foreach ($files as $file) {
         if (!$file->isDir()) {
-            $filePath = $file->getRealPath();
+            $filePath = $file->getPathname();
             $relativePath = substr($filePath, strlen($sourceDir) + 1);
             $zip->addFile($filePath, $relativePath);
         }
     }
+}
+
+/** Neutralises values that spreadsheet apps would interpret as formulas (CSV injection). */
+function csvCell(?string $value): string
+{
+    $value = str_replace([';', "\r", "\n"], ' ', (string) $value);
+    return preg_match('/^[=+\-@\t]/', $value) ? "'" . $value : $value;
 }
 
 $csvData = "Dateiname;Uploader;Zeitstempel;Getraenk;EventID\n";
@@ -46,10 +50,10 @@ $stmt->execute();
 $res = $stmt->get_result();
 
 while ($row = $res->fetch_assoc()) {
-    $file = str_replace(';', '', $row['filename']);
-    $user = str_replace(';', '', $row['uploader_name']);
+    $file = csvCell($row['filename']);
+    $user = csvCell($row['uploader_name']);
     $time = $row['timestamp'];
-    $drink = str_replace(';', '', $row['drink_name'] ?? '-');
+    $drink = $row['drink_name'] !== null ? csvCell($row['drink_name']) : '-';
 
     $csvData .= "$file;$user;$time;$drink;$uuid\n";
 }

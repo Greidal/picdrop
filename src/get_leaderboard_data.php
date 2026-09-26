@@ -1,5 +1,5 @@
 <?php
-require_once 'auth.php';
+require_once __DIR__ . '/lib/auth.php';
 
 header('Content-Type: application/json');
 
@@ -73,26 +73,32 @@ if ($mergeByDevice == 1) {
         ];
     }
 } else {
-    $resUsers = $conn->query("
+    $stmt = $conn->prepare("
         SELECT u.uploader_name, SUM(d.score_factor) as count 
         FROM uploads u
         JOIN drinks d ON u.drink_id = d.id
-        WHERE u.event_id = '$eventId' AND u.drink_id IS NOT NULL AND u.uploader_name != '' 
+        WHERE u.event_id = ? AND u.drink_id IS NOT NULL AND u.uploader_name != '' 
         GROUP BY u.uploader_name ORDER BY count DESC LIMIT 30
     ");
+    $stmt->bind_param("s", $eventId);
+    $stmt->execute();
+    $resUsers = $stmt->get_result();
     while ($row = $resUsers->fetch_assoc()) {
         $row['count'] = (float)$row['count'];
         $users[] = $row;
     }
 
-    $resDetails = $conn->query("
+    $stmtD = $conn->prepare("
         SELECT u.uploader_name, d.name, d.image_path, COUNT(*) as qty
         FROM uploads u
         JOIN drinks d ON u.drink_id = d.id
-        WHERE u.event_id = '$eventId' AND u.uploader_name != ''
+        WHERE u.event_id = ? AND u.uploader_name != ''
         GROUP BY u.uploader_name, d.name
         ORDER BY u.uploader_name, qty DESC
     ");
+    $stmtD->bind_param("s", $eventId);
+    $stmtD->execute();
+    $resDetails = $stmtD->get_result();
     while ($row = $resDetails->fetch_assoc()) {
         $details[$row['uploader_name']][] = [
             'drink' => $row['name'],
@@ -103,12 +109,15 @@ if ($mergeByDevice == 1) {
 }
 
 $drinks = [];
-$resDrinks = $conn->query("
+$stmtDrinks = $conn->prepare("
     SELECT d.name, d.image_path, COUNT(*) as count 
     FROM uploads u JOIN drinks d ON u.drink_id = d.id 
-    WHERE u.event_id = '$eventId' 
+    WHERE u.event_id = ? 
     GROUP BY d.id ORDER BY count DESC
 ");
+$stmtDrinks->bind_param("s", $eventId);
+$stmtDrinks->execute();
+$resDrinks = $stmtDrinks->get_result();
 while ($row = $resDrinks->fetch_assoc()) {
     $drinks[] = $row;
 }
