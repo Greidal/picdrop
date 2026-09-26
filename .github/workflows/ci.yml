@@ -1,0 +1,128 @@
+name: CI
+
+on:
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  php:
+    name: PHP lint & static analysis
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.5"
+          extensions: gd, exif, mysqli, zip, mbstring, fileinfo
+          tools: composer:v2
+          coverage: none
+
+      - name: Validate composer.json / composer.lock
+        run: composer validate --strict
+
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Audit dependencies for known vulnerabilities
+        run: composer audit
+
+      - name: Syntax check
+        run: composer lint
+
+      - name: PHPStan
+        run: composer analyse -- --no-progress --error-format=github
+
+  migrations:
+    name: Database migrations
+    runs-on: ubuntu-24.04
+    services:
+      db:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: fotobox
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      DB_HOST: 127.0.0.1
+      DB_USER: root
+      DB_PASS: root
+      DB_NAME: fotobox
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: ci-admin-password
+      ADMIN_EMAIL: admin@example.com
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.5"
+          extensions: mysqli, mbstring
+          coverage: none
+
+      - name: Apply migrations on an empty database
+        run: php src/lib/migrate.php
+
+      - name: Re-run migrations (must be a no-op)
+        run: php src/lib/migrate.php | tee out.txt && grep -q "Schema is up to date" out.txt
+
+      - name: Check schema
+        run: |
+          mysql -h 127.0.0.1 -uroot -proot fotobox -e "SELECT version FROM schema_migrations; SHOW TABLES; SELECT username, is_admin FROM users;"
+
+  dockerfile:
+    name: Dockerfile lint
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Hadolint
+        uses: hadolint/hadolint-action@v3.5.0
+        with:
+          dockerfile: Dockerfile
+
+  docker-build:
+    name: Docker build (smoke test)
+    runs-on: ubuntu-24.04
+    needs: [php, dockerfile]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: picdrop:ci
+          cache-from: type=gha,scope=build-amd64
+          # Pull-request runs only read the cache so they can't poison it.
+          cache-to: ${{ github.event_name != 'pull_request' && 'type=gha,mode=max,scope=build-amd64' || '' }}
+
+      - name: Check PHP extensions and config in the image
+        run: |
+          docker run --rm --entrypoint php picdrop:ci -r '
+            foreach (["gd","exif","mysqli","zip","Zend OPcache"] as $e) { if (!extension_loaded($e)) { fwrite(STDERR, "missing $e\n"); exit(1); } }
+            if (!function_exists("imagewebp")) { fwrite(STDERR, "GD without WebP\n"); exit(1); }
+            echo "ok\n";'
+          docker run --rm --entrypoint test picdrop:ci -f /var/www/vendor/autoload.php

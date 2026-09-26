@@ -1,0 +1,27 @@
+parameters:
+    level: 5
+    paths:
+        - src
+        - db/migrations
+    excludePaths:
+        - src/libs/*
+        - src/vendor/*
+        - src/uploads/*
+    bootstrapFiles:
+        - src/lib/config.php
+    # Values come from environment variables at runtime.
+    dynamicConstantNames:
+        - APP_URL
+        - PAGE_TITLE
+        - REGISTRATION_CODE
+        - SMTP_HOST
+        - SMTP_USER
+        - SMTP_PASS
+        - SMTP_PORT
+        - SMTP_SECURE
+        - SMTP_FROM_EMAIL
+        - SMTP_FROM_NAME
+    ignoreErrors:
+        # Pages receive $conn from lib/db.php via require_once, which PHPStan can't follow.
+        - message: '#^Variable \$conn might not be defined\.$#'
+          identifier: variable.undefined

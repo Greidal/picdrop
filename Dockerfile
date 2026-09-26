@@ -19,6 +19,8 @@ FROM php:8.5-apache
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
+# $savedAptMark is split into package names on purpose (same as the official php image).
+# hadolint ignore=SC2086
 RUN set -eux; \
     savedAptMark="$(apt-mark showmanual)"; \
     apt-get update; \
@@ -53,7 +55,7 @@ VOLUME ["/var/www/html/uploads"]
 EXPOSE 80
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD curl -fsS -o /dev/null http://localhost/healthz.php || exit 1
+    CMD ["curl", "-fsS", "-o", "/dev/null", "http://localhost/healthz.php"]
 
 ENTRYPOINT ["picdrop-entrypoint"]
 CMD ["apache2-foreground"]
