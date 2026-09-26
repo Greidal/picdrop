@@ -22,8 +22,9 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN set -eux; \
     savedAptMark="$(apt-mark showmanual)"; \
     apt-get update; \
-    apt-get install -y --no-install-recommends libzip-dev; \
-    docker-php-ext-install -j"$(nproc)" mysqli zip; \
+    apt-get install -y --no-install-recommends libjpeg62-turbo-dev libpng-dev libwebp-dev libzip-dev; \
+    docker-php-ext-configure gd --with-jpeg --with-webp; \
+    docker-php-ext-install -j"$(nproc)" exif gd mysqli zip; \
     # keep only the shared libraries the extensions actually link against
     apt-mark auto '.*' > /dev/null; \
     apt-mark manual $savedAptMark; \

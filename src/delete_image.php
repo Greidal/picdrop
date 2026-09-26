@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/lib/auth.php';
+require_once __DIR__ . '/lib/images.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -24,9 +25,8 @@ $stmt = $conn->prepare("DELETE FROM uploads WHERE event_id = ? AND filename = ?"
 $stmt->bind_param("ss", $uuid, $filename);
 $stmt->execute();
 
-$filePath = __DIR__ . "/uploads/$uuid/$filename";
-if ($stmt->affected_rows > 0 && is_file($filePath)) {
-    unlink($filePath);
+if ($stmt->affected_rows > 0) {
+    deleteUploadedImage($uuid, $filename);
 }
 
 echo "OK";

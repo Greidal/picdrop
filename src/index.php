@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/lib/auth.php';
+require_once __DIR__ . '/lib/images.php';
 
 $eventId = $_GET['event'] ?? '';
 $eventName = getEventOrDie($conn, $eventId);
@@ -72,6 +73,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $conn->prepare("INSERT INTO uploads (event_id, device_uuid, filename, uploader_name, drink_id) VALUES (?, ?, ?, ?, ?)");
                 $stmt->bind_param("ssssi", $eventId, $deviceParam, $fileName, $uploader, $drinkId);
                 $stmt->execute();
+
+                createAllImageVariants($eventId, $fileName);
 
                 $txt = $drinkId ? "Prost! 🍻 Check-in erledigt!" : "Bild ist auf der Leinwand! 🥳";
                 setFlashMessage($txt, "success");

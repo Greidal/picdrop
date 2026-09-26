@@ -260,7 +260,7 @@ $eventData = $stmt->get_result()->fetch_assoc();
             els.infoBox.style.opacity = 0;
 
             setTimeout(() => {
-                els.stage.src = `uploads/${CONFIG.eventId}/${encodeURIComponent(img.file)}`;
+                els.stage.src = img.src;
 
                 els.stage.onload = () => {
                     if (CONFIG.showUploader) {

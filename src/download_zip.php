@@ -22,7 +22,8 @@ if (is_dir($sourceDir)) {
     );
 
     foreach ($files as $file) {
-        if (!$file->isDir()) {
+        // Cached thumbnails are not part of the backup.
+        if (!$file->isDir() && !str_contains($file->getPathname(), '/.variants/')) {
             $filePath = $file->getPathname();
             $relativePath = substr($filePath, strlen($sourceDir) + 1);
             $zip->addFile($filePath, $relativePath);

@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/lib/auth.php';
+require_once __DIR__ . '/lib/images.php';
 
 requireLogin();
 $uuid = $_GET['event'] ?? '';
@@ -24,10 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sel->bind_param("ss", $uuid, $deviceToBan);
             $sel->execute();
             foreach ($sel->get_result() as $row) {
-                $file = __DIR__ . "/uploads/$uuid/" . basename($row['filename']);
-                if (is_file($file)) {
-                    unlink($file);
-                }
+                deleteUploadedImage($uuid, $row['filename']);
             }
             $del = $conn->prepare("DELETE FROM uploads WHERE event_id = ? AND device_uuid = ?");
             $del->bind_param("ss", $uuid, $deviceToBan);

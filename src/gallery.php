@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/lib/auth.php';
+require_once __DIR__ . '/lib/images.php';
 requireLogin();
 $uuid = $_GET['event'] ?? '';
 checkEventAccess($conn, $uuid);
@@ -210,7 +211,8 @@ require __DIR__ . '/lib/header.php';
                 $date = date("d.m.Y H:i", strtotime($img['timestamp']));
 
                 $jsImages[] = [
-                    'src' => $fullPath,
+                    'src' => imageVariantUrl($uuid, $img['filename'], 'display'),
+                    'original' => $fullPath,
                     'user' => $user,
                     'drink' => $drink,
                     'date' => $date
@@ -221,7 +223,7 @@ require __DIR__ . '/lib/header.php';
                     <button class="btn-delete" data-filename="<?php echo e($img['filename']); ?>" onclick="deleteImage(event, this.dataset.filename, <?php echo $index; ?>)">
                         <i class="fa fa-trash"></i>
                     </button>
-                    <img src="<?php echo e($fullPath); ?>" loading="lazy" alt="Foto">
+                    <img src="<?php echo e(imageVariantUrl($uuid, $img['filename'], 'thumb')); ?>" loading="lazy" decoding="async" alt="Foto">
                 </div>
             <?php endforeach; ?>
         </div>
@@ -307,7 +309,7 @@ require __DIR__ . '/lib/header.php';
         lbText.innerText = title;
         lbMeta.innerText = imgData.date + " Uhr";
 
-        lbDown.href = imgData.src;
+        lbDown.href = imgData.original;
     }
 
     async function deleteImage(event, filename, index) {

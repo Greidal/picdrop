@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/lib/auth.php';
+require_once __DIR__ . '/lib/images.php';
 
 header('Content-Type: application/json');
 
@@ -32,6 +33,7 @@ $images = [];
 while ($row = $result->fetch_assoc()) {
     $images[] = [
         'file' => $row['filename'],
+        'src' => imageVariantUrl($eventId, $row['filename'], 'display'),
         'timestamp' => strtotime($row['timestamp']),
         'uploader' => $row['uploader_name'],
         'drink_name' => $row['drink_name'],
