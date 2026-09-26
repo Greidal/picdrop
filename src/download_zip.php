@@ -8,7 +8,19 @@ checkEventAccess($conn, $uuid);
 $sourceDir = __DIR__ . "/uploads/" . $uuid;
 if (!is_dir($sourceDir) && !isset($_GET['export_db'])) die("Keine Daten vorhanden.");
 
-$zipFile = tempnam(sys_get_temp_dir(), 'zip');
+// Build the archive on the uploads volume: /tmp is a small RAM-backed tmpfs in the container.
+$tmpDir = __DIR__ . '/uploads/.tmp';
+if (!is_dir($tmpDir)) {
+    mkdir($tmpDir, 0750, true);
+}
+$zipFile = tempnam($tmpDir, 'zip');
+// Make sure the temp file is removed even if the client aborts the download.
+ignore_user_abort(true);
+register_shutdown_function(static function () use ($zipFile): void {
+    if (is_file($zipFile)) {
+        unlink($zipFile);
+    }
+});
 $zip = new ZipArchive();
 
 if ($zip->open($zipFile, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== TRUE) {
@@ -76,7 +88,6 @@ if (file_exists($zipFile)) {
     header('Content-Length: ' . filesize($zipFile));
 
     readfile($zipFile);
-    unlink($zipFile);
     exit;
 } else {
     die("Fehler beim Erstellen des Backups.");

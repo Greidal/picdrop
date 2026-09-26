@@ -129,3 +129,26 @@ jobs:
             if (!function_exists("imagewebp")) { fwrite(STDERR, "GD without WebP\n"); exit(1); }
             echo "ok\n";'
           docker run --rm --entrypoint test picdrop:ci -f /var/www/vendor/autoload.php
+
+      - name: Run hardened container (read-only, no capabilities, non-root)
+        run: |
+          docker network create picdrop-ci
+          docker run -d --name db --network picdrop-ci \
+            -e MARIADB_ROOT_PASSWORD=root -e MARIADB_DATABASE=fotobox \
+            --health-cmd="healthcheck.sh --connect --innodb_initialized" --health-interval=3s \
+            mariadb:10.11
+          for _ in $(seq 1 40); do [ "$(docker inspect -f '{{.State.Health.Status}}' db)" = healthy ] && break; sleep 3; done
+          docker run -d --name app --network picdrop-ci -p 8080:8080 \
+            --read-only --tmpfs /tmp --tmpfs /var/run/apache2 \
+            --cap-drop ALL --security-opt no-new-privileges:true \
+            -v picdrop-ci-uploads:/var/www/html/uploads \
+            -e DB_HOST=db -e DB_USER=root -e DB_PASS=root -e DB_NAME=fotobox \
+            picdrop:ci
+          for _ in $(seq 1 40); do [ "$(docker inspect -f '{{.State.Health.Status}}' app)" = healthy ] && break; sleep 3; done
+          docker logs app
+          test "$(docker inspect -f '{{.State.Health.Status}}' app)" = healthy
+          test "$(docker exec app id -un)" = www-data
+          curl -fsS -o /dev/null http://localhost:8080/login.php
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/lib/config.php)" = 403
+          # code must not be writable by the web server user
+          ! docker exec app sh -c 'echo x > /var/www/html/index.php' 2>/dev/null
