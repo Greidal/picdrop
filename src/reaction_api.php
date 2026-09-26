@@ -1,15 +1,19 @@
 <?php
-require_once 'auth.php';
+require_once __DIR__ . '/lib/auth.php';
 
 header('Content-Type: application/json');
 
 $action = $_GET['action'] ?? '';
 $uuid = $_GET['event'] ?? '';
 
-if (!$uuid) exit;
+if (!isValidUuid($uuid)) {
+    http_response_code(400);
+    echo json_encode(['error' => 'Invalid Event']);
+    exit;
+}
 
 if ($action === 'send' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $input = $_POST['emoji'] ?? '';
+    $input = (string) ($_POST['emoji'] ?? '');
 
     $input = trim($input);
 
@@ -30,6 +34,14 @@ if ($action === 'send' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 if ($action === 'poll') {
+    // Polling is only used by the (login-protected) slideshow.
+    if (!isLoggedIn()) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Not logged in']);
+        exit;
+    }
+    checkEventAccess($conn, $uuid);
+
     $lastId = isset($_GET['last_id']) ? intval($_GET['last_id']) : 0;
 
     $sql = "SELECT id, emoji FROM live_reactions 

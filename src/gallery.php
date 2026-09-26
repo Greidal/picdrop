@@ -1,5 +1,6 @@
 <?php
-require_once 'auth.php';
+require_once __DIR__ . '/lib/auth.php';
+require_once __DIR__ . '/lib/images.php';
 requireLogin();
 $uuid = $_GET['event'] ?? '';
 checkEventAccess($conn, $uuid);
@@ -17,12 +18,13 @@ $stmt->execute();
 $result = $stmt->get_result();
 
 $images = [];
+$jsImages = [];
 while ($row = $result->fetch_assoc()) {
     $images[] = $row;
 }
 
 $pageTitle = "Galerie - " . $eventName;
-require 'header.php';
+require __DIR__ . '/lib/header.php';
 ?>
 
 <style>
@@ -192,7 +194,7 @@ require 'header.php';
 
 <div class="container">
     <div class="flex-between">
-        <h1>Galerie: <?php echo htmlspecialchars($eventName); ?></h1>
+        <h1>Galerie: <?php echo e($eventName); ?></h1>
         <a href="admin.php" class="btn btn-secondary btn-small">🔙 Dashboard</a>
     </div>
 
@@ -201,16 +203,16 @@ require 'header.php';
     <?php else: ?>
         <div class="gallery-grid">
             <?php
-            $jsImages = [];
             foreach ($images as $index => $img):
-                $fullPath = "uploads/$uuid/" . $img['filename'];
+                $fullPath = "uploads/$uuid/" . rawurlencode($img['filename']);
 
                 $user = $img['uploader_name'] ?: '(Gast)';
                 $drink = $img['drink_name'] ? "trinkt " . $img['drink_name'] : "";
                 $date = date("d.m.Y H:i", strtotime($img['timestamp']));
 
                 $jsImages[] = [
-                    'src' => $fullPath,
+                    'src' => imageVariantUrl($uuid, $img['filename'], 'display'),
+                    'original' => $fullPath,
                     'user' => $user,
                     'drink' => $drink,
                     'date' => $date
@@ -218,10 +220,10 @@ require 'header.php';
             ?>
                 <div class="gallery-item" id="img-card-<?php echo $index; ?>" onclick="openLightbox(<?php echo $index; ?>)">
 
-                    <button class="btn-delete" onclick="deleteImage(event, '<?php echo $img['filename']; ?>', <?php echo $index; ?>)">
+                    <button class="btn-delete" data-filename="<?php echo e($img['filename']); ?>" onclick="deleteImage(event, this.dataset.filename, <?php echo $index; ?>)">
                         <i class="fa fa-trash"></i>
                     </button>
-                    <img src="<?php echo $fullPath; ?>" loading="lazy" alt="Foto">
+                    <img src="<?php echo e(imageVariantUrl($uuid, $img['filename'], 'thumb')); ?>" loading="lazy" decoding="async" alt="Foto">
                 </div>
             <?php endforeach; ?>
         </div>
@@ -246,7 +248,7 @@ require 'header.php';
 </div>
 
 <script>
-    const images = <?php echo json_encode($jsImages); ?>;
+    const images = <?php echo json_encode($jsImages, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
     let currentIndex = 0;
 
     const lb = document.getElementById('lightbox');
@@ -307,7 +309,7 @@ require 'header.php';
         lbText.innerText = title;
         lbMeta.innerText = imgData.date + " Uhr";
 
-        lbDown.href = imgData.src;
+        lbDown.href = imgData.original;
     }
 
     async function deleteImage(event, filename, index) {
@@ -315,7 +317,8 @@ require 'header.php';
         if (!confirm("Bist du sicher, dass du dieses Bild löschen willst?")) return;
 
         const formData = new FormData();
-        formData.append('event_uuid', '<?php echo $uuid; ?>');
+        formData.append('event_uuid', <?php echo json_encode($uuid); ?>);
+        formData.append('csrf_token', <?php echo json_encode(csrfToken()); ?>);
         formData.append('filename', filename);
 
         try {

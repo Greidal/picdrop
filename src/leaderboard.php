@@ -1,12 +1,12 @@
 <?php
-require_once 'auth.php';
+require_once __DIR__ . '/lib/auth.php';
 requireLogin();
 $eventId = $_GET['event'] ?? '';
 checkEventAccess($conn, $eventId);
 $eventName = getEventOrDie($conn, $eventId);
 
 $pageTitle = "Leaderboard: $eventName";
-require 'header.php';
+require __DIR__ . '/lib/header.php';
 ?>
 
 <div class="container text-center">
@@ -40,11 +40,12 @@ require 'header.php';
 
 <script>
     const CONFIG = {
-        eventId: "<?php echo htmlspecialchars($eventId); ?>",
+        eventId: <?php echo json_encode($eventId); ?>,
         pollInterval: 5000
     };
 
     let globalDetails = {};
+    let globalUsers = [];
 
     async function updateLeaderboard() {
         try {
@@ -54,6 +55,7 @@ require 'header.php';
             const data = await response.json();
 
             globalDetails = data.details;
+            globalUsers = data.users;
 
             let userHtml = '';
             if (data.users.length === 0) {
@@ -61,7 +63,6 @@ require 'header.php';
             } else {
                 data.users.forEach((u, index) => {
                     const rank = index + 1;
-                    const nameEscaped = u.uploader_name.replace(/'/g, "\\'");
 
                     const score = parseFloat(u.count);
                     const formattedScore = Number.isInteger(score) ? score : score.toFixed(1);
@@ -71,7 +72,7 @@ require 'header.php';
                              style="padding:12px 10px; border-bottom:1px solid #333; cursor:pointer; transition:0.2s;" 
                              onmouseover="this.style.background='#222'" 
                              onmouseout="this.style.background='transparent'"
-                             onclick="openModal('${nameEscaped}')">
+                             onclick="openModal(${index})">
                             
                             <div>
                                 <span style="font-weight:bold; color:#666; margin-right:10px;">#${rank}</span>
@@ -111,7 +112,8 @@ require 'header.php';
         }
     }
 
-    function openModal(name) {
+    function openModal(index) {
+        const name = globalUsers[index].uploader_name;
         document.getElementById('mTitle').innerText = name;
         const list = document.getElementById('mList');
         list.innerHTML = "";

@@ -1,0 +1,3 @@
+ignored:
+  # apt package versions follow the (Renovate/Dependabot-pinned) base image.
+  - DL3008

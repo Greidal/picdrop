@@ -1,8 +1,8 @@
 <?php
-require 'auth.php';
+require_once __DIR__ . '/lib/auth.php';
 requireLogin();
 
-$eventId = $_GET['event'] ?? die("Missing Event ID");
+$eventId = $_GET['event'] ?? '';
 checkEventAccess($conn, $eventId);
 
 $stmt = $conn->prepare("SELECT name, logo_path, setting_show_badge, setting_show_uploader, setting_show_time, setting_show_event_name, setting_slide_duration FROM events WHERE uuid = ?");
@@ -15,7 +15,7 @@ $eventData = $stmt->get_result()->fetch_assoc();
 
 <head>
     <meta charset="UTF-8">
-    <title><?php echo htmlspecialchars($eventData['name']); ?> Slideshow</title>
+    <title><?php echo e($eventData['name']); ?> Slideshow</title>
     <link rel="icon" href="favicon.png" type="image/png">
     <style>
         body {
@@ -166,7 +166,7 @@ $eventData = $stmt->get_result()->fetch_assoc();
     <div id="badge" class="overlay">NEU!</div>
 
     <?php if (!empty($eventData['logo_path'])): ?>
-        <img id="event-logo" src="<?php echo htmlspecialchars($eventData['logo_path']); ?>" alt="Event Logo">
+        <img id="event-logo" src="<?php echo e($eventData['logo_path']); ?>" alt="Event Logo">
     <?php endif; ?>
 
     <div id="meta-box" class="overlay">
@@ -176,18 +176,18 @@ $eventData = $stmt->get_result()->fetch_assoc();
 
     <div id="info-box" class="overlay">
         <div id="time-display"></div>
-        <div id="event-display"><?php echo htmlspecialchars($eventData['name']); ?></div>
+        <div id="event-display"><?php echo e($eventData['name']); ?></div>
     </div>
 
     <script>
         const CONFIG = {
-            eventId: "<?php echo htmlspecialchars($eventId); ?>",
-            duration: <?php echo $eventData['setting_slide_duration']; ?>,
+            eventId: <?php echo json_encode($eventId); ?>,
+            duration: <?php echo (int) $eventData['setting_slide_duration']; ?>,
             pollInterval: 5000,
-            showBadge: <?php echo $eventData['setting_show_badge']; ?>,
-            showUploader: <?php echo $eventData['setting_show_uploader']; ?>,
-            showTime: <?php echo $eventData['setting_show_time']; ?>,
-            showEventName: <?php echo $eventData['setting_show_event_name']; ?>
+            showBadge: <?php echo (int) $eventData['setting_show_badge']; ?>,
+            showUploader: <?php echo (int) $eventData['setting_show_uploader']; ?>,
+            showTime: <?php echo (int) $eventData['setting_show_time']; ?>,
+            showEventName: <?php echo (int) $eventData['setting_show_event_name']; ?>
         };
 
         const els = {
@@ -260,7 +260,7 @@ $eventData = $stmt->get_result()->fetch_assoc();
             els.infoBox.style.opacity = 0;
 
             setTimeout(() => {
-                els.stage.src = `uploads/${CONFIG.eventId}/${img.file}`;
+                els.stage.src = img.src;
 
                 els.stage.onload = () => {
                     if (CONFIG.showUploader) {

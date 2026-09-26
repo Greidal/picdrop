@@ -1,7 +1,6 @@
 <?php
-require_once 'auth.php';
-require_once 'db.php';
-require_once 'mail_helper.php';
+require_once __DIR__ . '/lib/auth.php';
+require_once __DIR__ . '/lib/mail.php';
 
 requireLogin();
 
@@ -14,15 +13,17 @@ $msgClass = $flash ? $flash['type'] : "";
 
 function redirectSelf($uuid)
 {
-    header("Location: manage_event.php?event=" . $uuid);
+    header("Location: manage_event.php?event=" . urlencode($uuid));
     exit;
 }
 
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireCsrf();
+
     if (isset($_POST['rename_event'])) {
         $newName = trim($_POST['event_name'] ?? '');
-        $nameLength = function_exists('mb_strlen') ? mb_strlen($newName) : strlen($newName);
+        $nameLength = mb_strlen($newName);
 
         if ($newName === '') {
             $msg = "Bitte einen neuen Event-Namen eingeben.";
@@ -51,20 +52,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $s_bar = isset($_POST['s_bar']) ? 1 : 0;
         $s_evtname = isset($_POST['s_evtname']) ? 1 : 0;
         $s_merge = isset($_POST['s_merge']) ? 1 : 0;
-        $s_duration = intval($_POST['s_duration']);
+        $s_duration = max(2000, min(600000, intval($_POST['s_duration'] ?? 8000)));
 
         $upd = $conn->prepare("UPDATE events SET setting_show_badge=?, setting_show_uploader=?, setting_show_time=?, setting_show_event_name=?, setting_show_bar=?, setting_merge_by_device=?, setting_slide_duration=? WHERE uuid=?");
         $upd->bind_param("iiiiiiis", $s_badge, $s_uploader, $s_time, $s_evtname, $s_bar, $s_merge, $s_duration, $uuid);
 
         if ($upd->execute()) {
             if (isset($_FILES['event_logo']) && $_FILES['event_logo']['error'] !== UPLOAD_ERR_NO_FILE) {
-                $targetDir = "uploads/$uuid/";
-                if (!is_dir($targetDir)) mkdir($targetDir, 0777, true);
+                $targetFile = storeUploadedImage($_FILES['event_logo'], "uploads/$uuid");
 
-                $fileName = time() . "_" . basename($_FILES['event_logo']['name']);
-                $targetFile = $targetDir . $fileName;
-
-                if (move_uploaded_file($_FILES['event_logo']['tmp_name'], $targetFile)) {
+                if ($targetFile !== null) {
                     $logoStmt = $conn->prepare("UPDATE events SET logo_path = ? WHERE uuid = ?");
                     $logoStmt->bind_param("ss", $targetFile, $uuid);
                     $logoStmt->execute();
@@ -73,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     redirectSelf($uuid);
                 }
 
-                $msg = "Fehler beim Upload des Logos.";
+                $msg = "Fehler beim Upload des Logos (erlaubt: JPG, PNG, WebP, GIF).";
                 $msgClass = "error";
             } else {
                 setFlashMessage("Einstellungen gespeichert!", "success");
@@ -87,8 +84,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->bind_param("s", $uuid);
         $stmt->execute();
         $r = $stmt->get_result()->fetch_assoc();
-        if ($r && $r['logo_path'] && file_exists($r['logo_path'])) {
-            @unlink($r['logo_path']);
+        if ($r && $r['logo_path'] && str_starts_with($r['logo_path'], "uploads/$uuid/") && is_file($r['logo_path'])) {
+            unlink($r['logo_path']);
         }
         $upd = $conn->prepare("UPDATE events SET logo_path = NULL WHERE uuid = ?");
         $upd->bind_param("s", $uuid);
@@ -99,7 +96,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (isset($_POST['invite_email'])) {
-        $email = trim($_POST['invite_email']);
+        $email = mb_strtolower(trim((string) $_POST['invite_email']));
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            setFlashMessage("Ungültige E-Mail-Adresse.", "error");
+            redirectSelf($uuid);
+        }
 
         $stmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
         $stmt->bind_param("s", $email);
@@ -110,9 +112,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $existingUser = $res->fetch_assoc();
             $uid = $existingUser['id'];
 
-            $check = $conn->query("SELECT * FROM event_users WHERE event_uuid='$uuid' AND user_id=$uid");
-            if ($check->num_rows == 0) {
-                $conn->query("INSERT INTO event_users (event_uuid, user_id) VALUES ('$uuid', $uid)");
+            $check = $conn->prepare("SELECT 1 FROM event_users WHERE event_uuid = ? AND user_id = ?");
+            $check->bind_param("si", $uuid, $uid);
+            $check->execute();
+            if ($check->get_result()->num_rows == 0) {
+                $ins = $conn->prepare("INSERT INTO event_users (event_uuid, user_id) VALUES (?, ?)");
+                $ins->bind_param("si", $uuid, $uid);
+                $ins->execute();
                 sendEventAccessMail($email, getEventOrDie($conn, $uuid), $uuid);
 
                 setFlashMessage("User existiert bereits. Zugriff gewährt & E-Mail gesendet!", "success");
@@ -124,7 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $token = bin2hex(random_bytes(16));
 
-            $stmt = $conn->prepare("INSERT INTO event_invites (event_uuid, email, token) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE token = VALUES(token)");
+            $stmt = $conn->prepare("INSERT INTO event_invites (event_uuid, email, token) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE token = VALUES(token), created_at = CURRENT_TIMESTAMP");
             $stmt->bind_param("sss", $uuid, $email, $token);
 
             if ($stmt->execute()) {
@@ -139,23 +145,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (isset($_FILES['drink_image']) && isset($_POST['drink_name'])) {
-        $targetDir = "uploads/$uuid/drinks/";
-        if (!is_dir($targetDir)) mkdir($targetDir, 0777, true);
-
-        $fileName = time() . "_" . basename($_FILES['drink_image']['name']);
-        $targetFile = $targetDir . $fileName;
-
+        $drinkName = mb_substr(trim((string) $_POST['drink_name']), 0, 100);
         $score = isset($_POST['drink_score']) ? floatval($_POST['drink_score']) : 1.0;
+        $score = max(0.0, min(999.9, $score));
 
-        if (move_uploaded_file($_FILES['drink_image']['tmp_name'], $targetFile)) {
+        $targetFile = $drinkName !== '' ? storeUploadedImage($_FILES['drink_image'], "uploads/$uuid/drinks") : null;
+
+        if ($targetFile !== null) {
             $stmt = $conn->prepare("INSERT INTO drinks (event_uuid, name, image_path, score_factor) VALUES (?, ?, ?, ?)");
-            $stmt->bind_param("sssd", $uuid, $_POST['drink_name'], $targetFile, $score);
+            $stmt->bind_param("sssd", $uuid, $drinkName, $targetFile, $score);
             $stmt->execute();
 
             setFlashMessage("Getränk hinzugefügt!", "success");
             redirectSelf($uuid);
         } else {
-            $msg = "Fehler beim Upload des Bildes.";
+            $msg = "Fehler beim Upload des Bildes (Name angeben; erlaubt: JPG, PNG, WebP, GIF).";
             $msgClass = "error";
         }
     }
@@ -168,7 +172,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute();
         $res = $stmt->get_result();
         if ($row = $res->fetch_assoc()) {
-            if (file_exists($row['image_path'])) {
+            if (str_starts_with($row['image_path'], "uploads/$uuid/") && is_file($row['image_path'])) {
                 unlink($row['image_path']);
             }
 
@@ -182,20 +186,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (isset($_POST['delete_event_final']) && $_POST['delete_event_final'] === 'yes') {
-        $dir = "uploads/$uuid/";
-
-        if (is_dir($dir)) {
-            $files = new RecursiveIteratorIterator(
-                new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS),
-                RecursiveIteratorIterator::CHILD_FIRST
-            );
-
-            foreach ($files as $fileinfo) {
-                $todo = ($fileinfo->isDir() ? 'rmdir' : 'unlink');
-                $todo($fileinfo->getRealPath());
-            }
-            rmdir($dir);
-        }
+        removeDirectory(__DIR__ . "/uploads/$uuid");
 
         $stmt = $conn->prepare("DELETE FROM events WHERE uuid = ?");
         $stmt->bind_param("s", $uuid);
@@ -205,7 +196,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header("Location: admin.php");
             exit;
         } else {
-            $msg = "Fehler beim Löschen des Events: " . $conn->error;
+            $msg = "Fehler beim Löschen des Events.";
             $msgClass = "error";
         }
     }
@@ -216,37 +207,34 @@ $stmt->bind_param("s", $uuid);
 $stmt->execute();
 $event = $stmt->get_result()->fetch_assoc();
 
-$appUrl = (isset($_SERVER['HTTPS']) ? "https" : "http") . "://$_SERVER[HTTP_HOST]" . dirname($_SERVER['PHP_SELF']) . "/?event=" . $uuid;
+$appUrl = appBaseUrl() . "/?event=" . urlencode($uuid);
+$qrCode = (new chillerlan\QRCode\QRCode())->render($appUrl);
 $pageTitle = "Verwalten: " . $event['name'];
-require 'header.php';
+require __DIR__ . '/lib/header.php';
 ?>
 
 <div class="container">
     <div class="flex-between">
         <a href="admin.php" class="btn btn-secondary btn-small">🔙 Dashboard</a>
-        <a href="manage_guests.php?event=<?php echo $uuid; ?>" class="btn btn-primary btn-small">👮 Gäste & Spam verwalten</a>
+        <a href="manage_guests.php?event=<?php echo e($uuid); ?>" class="btn btn-primary btn-small">👮 Gäste & Spam verwalten</a>
     </div>
 
-    <h1>⚙️ <?php echo htmlspecialchars($event['name']); ?></h1>
+    <h1>⚙️ <?php echo e($event['name']); ?></h1>
 
-    <?php if ($msg): ?>
-        <div class="msg <?php echo $msgClass ?: 'success'; ?>">
-            <?php echo $msg; ?>
-        </div>
-    <?php endif; ?>
+    <?php echo renderMessage($msg, $msgClass); ?>
 
     <div class="card text-center">
         <h3>🔗 Event Teilen</h3>
         <p style="color:#888;">Scannen oder Link senden, damit Gäste Fotos hochladen können.</p>
 
         <div style="display:flex; justify-content:center; gap:20px; align-items:center; flex-wrap:wrap;">
-            <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=<?php echo urlencode($appUrl); ?>" style="border-radius:10px; border:2px solid white;">
+            <img src="<?php echo e($qrCode); ?>" alt="QR-Code zum Event" width="150" height="150" style="border-radius:10px; border:2px solid white; background:white;">
 
             <div style="text-align:left;">
-                <input type="text" value="<?php echo $appUrl; ?>" id="shareLink" readonly style="width:250px;">
+                <input type="text" value="<?php echo e($appUrl); ?>" id="shareLink" readonly style="width:250px;">
                 <br>
                 <button onclick="copyLink()" class="btn btn-primary btn-small"><i class="fa fa-copy"></i> Link kopieren</button>
-                <a href="<?php echo $appUrl; ?>" target="_blank" class="btn btn-secondary btn-small"><i class="fa fa-external-link-alt"></i> Öffnen</a>
+                <a href="<?php echo e($appUrl); ?>" target="_blank" class="btn btn-secondary btn-small"><i class="fa fa-external-link-alt"></i> Öffnen</a>
             </div>
         </div>
     </div>
@@ -254,9 +242,10 @@ require 'header.php';
     <div class="card">
         <h3>Event umbenennen</h3>
         <form method="post" style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+            <?php echo csrfField(); ?>
             <div style="flex:1; min-width:240px;">
                 <label for="eventName">Neuer Event-Name</label>
-                <input type="text" id="eventName" name="event_name" value="<?php echo htmlspecialchars($event['name']); ?>" maxlength="100" required>
+                <input type="text" id="eventName" name="event_name" value="<?php echo e($event['name']); ?>" maxlength="100" required>
             </div>
             <button type="submit" name="rename_event" value="1" class="btn btn-primary btn-small">Umbenennen</button>
         </form>
@@ -268,8 +257,9 @@ require 'header.php';
             <label>Event-Logo (oben links, optional)</label>
             <?php if (!empty($event['logo_path'])): ?>
                 <div style="display:flex; gap:10px; align-items:center; margin-bottom:8px;">
-                    <img src="<?php echo htmlspecialchars($event['logo_path']); ?>" style="height:60px; object-fit:contain; border-radius:6px; border:1px solid #333; background:#000;">
+                    <img src="<?php echo e($event['logo_path']); ?>" style="height:60px; object-fit:contain; border-radius:6px; border:1px solid #333; background:#000;">
                     <form method="post" style="display:inline; margin:0;">
+                        <?php echo csrfField(); ?>
                         <input type="hidden" name="delete_logo" value="1">
                         <button class="btn btn-danger btn-small" style="height:36px;">Logo entfernen</button>
                     </form>
@@ -278,6 +268,7 @@ require 'header.php';
         </div>
 
         <form method="post" enctype="multipart/form-data">
+            <?php echo csrfField(); ?>
             <input type="hidden" name="update_settings" value="1">
 
             <div class="grid" style="grid-template-columns: 1fr 1fr;">
@@ -319,7 +310,7 @@ require 'header.php';
 
             <div style="margin-top:15px;">
                 <label>Anzeigedauer pro Bild (ms):</label>
-                <input type="number" name="s_duration" value="<?php echo $event['setting_slide_duration']; ?>" min="2000" step="500">
+                <input type="number" name="s_duration" value="<?php echo (int) $event['setting_slide_duration']; ?>" min="2000" step="500">
             </div>
 
             <div style="margin-top:15px;">
@@ -339,6 +330,7 @@ require 'header.php';
             <p style="color:#888; font-size:0.9rem;">Gib eine E-Mail-Adresse ein. Wenn der User existiert, wird er hinzugefügt. Wenn nicht, erhält er einen Registrierungs-Link.</p>
 
             <form method="post">
+                <?php echo csrfField(); ?>
                 <input type="email" name="invite_email" placeholder="gast@beispiel.de" required>
                 <button class="btn btn-secondary btn-small">Einladen</button>
             </form>
@@ -346,9 +338,11 @@ require 'header.php';
             <h4 style="margin-top:20px; border-bottom:1px solid #333; padding-bottom:5px;">Berechtigte User</h4>
             <ul style="padding-left:20px; color:#ccc;">
                 <?php
-                $team = $conn->query("SELECT u.username, u.email FROM users u JOIN event_users eu ON u.id = eu.user_id WHERE eu.event_uuid = '$uuid'");
-                while ($t = $team->fetch_assoc()) {
-                    echo "<li>" . htmlspecialchars($t['username']) . " <span style='color:#666; font-size:0.8em'>(" . htmlspecialchars($t['email']) . ")</span></li>";
+                $team = $conn->prepare("SELECT u.username, u.email FROM users u JOIN event_users eu ON u.id = eu.user_id WHERE eu.event_uuid = ?");
+                $team->bind_param("s", $uuid);
+                $team->execute();
+                foreach ($team->get_result() as $t) {
+                    echo "<li>" . e($t['username']) . " <span style='color:#666; font-size:0.8em'>(" . e($t['email']) . ")</span></li>";
                 }
                 ?>
             </ul>
@@ -356,10 +350,13 @@ require 'header.php';
             <h4 style="margin-top:20px; border-bottom:1px solid #333; padding-bottom:5px;">Offene Einladungen</h4>
             <ul style="padding-left:20px; color:#888;">
                 <?php
-                $invites = $conn->query("SELECT email FROM event_invites WHERE event_uuid = '$uuid'");
+                $invStmt = $conn->prepare("SELECT email FROM event_invites WHERE event_uuid = ?");
+                $invStmt->bind_param("s", $uuid);
+                $invStmt->execute();
+                $invites = $invStmt->get_result();
                 if ($invites->num_rows > 0) {
                     while ($inv = $invites->fetch_assoc()) {
-                        echo "<li>" . htmlspecialchars($inv['email']) . " (Wartet auf Registrierung...)</li>";
+                        echo "<li>" . e($inv['email']) . " (Wartet auf Registrierung...)</li>";
                     }
                 } else {
                     echo "<li style='list-style:none; font-size:0.8rem;'>Keine offenen Einladungen.</li>";
@@ -371,6 +368,7 @@ require 'header.php';
         <div class="card">
             <h3>Getränkekarte</h3>
             <form method="post" enctype="multipart/form-data">
+                <?php echo csrfField(); ?>
                 <input type="text" name="drink_name" placeholder="Name (z.B. Bier)" required>
 
                 <div style="display:flex; gap:10px; align-items:center;">
@@ -388,21 +386,25 @@ require 'header.php';
 
             <div style="margin-top:20px; display:grid; grid-template-columns:repeat(auto-fill, minmax(80px, 1fr)); gap:10px;">
                 <?php
-                $drinks = $conn->query("SELECT * FROM drinks WHERE event_uuid = '$uuid'");
+                $drinkStmt = $conn->prepare("SELECT * FROM drinks WHERE event_uuid = ?");
+                $drinkStmt->bind_param("s", $uuid);
+                $drinkStmt->execute();
+                $drinks = $drinkStmt->get_result();
                 while ($d = $drinks->fetch_assoc()): ?>
                     <div style="position:relative; text-align:center; background:black; border-radius:5px; padding:5px;">
-                        <img src="<?php echo htmlspecialchars($d['image_path']); ?>" style="width:100%; height:80px; object-fit:cover; border-radius:5px;">
+                        <img src="<?php echo e($d['image_path']); ?>" style="width:100%; height:80px; object-fit:cover; border-radius:5px;">
 
                         <div style="position:absolute; bottom:5px; right:5px; background:var(--primary); color:white; font-size:0.7rem; padding:2px 5px; border-radius:3px; font-weight:bold;">
                             x<?php echo floatval($d['score_factor']); ?>
                         </div>
 
                         <form method="post" onsubmit="return confirm('Wirklich löschen?');" style="position:absolute; top:-5px; right:-5px;">
-                            <input type="hidden" name="delete_drink_id" value="<?php echo $d['id']; ?>">
+                            <?php echo csrfField(); ?>
+                            <input type="hidden" name="delete_drink_id" value="<?php echo (int) $d['id']; ?>">
                             <button class="btn-danger" style="border-radius:50%; width:24px; height:24px; padding:0; line-height:24px;">×</button>
                         </form>
 
-                        <small style="display:block; margin-top:5px;"><?php echo htmlspecialchars($d['name']); ?></small>
+                        <small style="display:block; margin-top:5px;"><?php echo e($d['name']); ?></small>
                     </div>
                 <?php endwhile; ?>
             </div>
@@ -417,6 +419,7 @@ require 'header.php';
         </p>
 
         <form id="deleteForm" method="post" style="margin-top:20px;">
+            <?php echo csrfField(); ?>
             <input type="hidden" name="delete_event_final" value="yes">
 
             <label style="display:flex; align-items:center; margin-bottom:20px; cursor:pointer; background:rgba(0,0,0,0.3); padding:10px; border-radius:5px;">
@@ -433,8 +436,8 @@ require 'header.php';
                 <div style="font-size:0.8rem; color:#888;">Bitte Fenster nicht schließen!</div>
             </div>
 
-            <button type="button" id="deleteBtn" onclick="initiateDeleteProcess('<?php echo htmlspecialchars($event['name']); ?>', '<?php echo $uuid; ?>')" class="btn btn-danger" style="width: 100%; font-size: 1.1rem; padding: 15px;">
-                ⚠️ EVENT "<?php echo htmlspecialchars($event['name']); ?>" LÖSCHEN
+            <button type="button" id="deleteBtn" data-name="<?php echo e($event['name']); ?>" data-uuid="<?php echo e($uuid); ?>" onclick="initiateDeleteProcess(this.dataset.name, this.dataset.uuid)" class="btn btn-danger" style="width: 100%; font-size: 1.1rem; padding: 15px;">
+                ⚠️ EVENT "<?php echo e($event['name']); ?>" LÖSCHEN
             </button>
         </form>
     </div>
@@ -472,7 +475,7 @@ require 'header.php';
                 statusBox.style.display = 'block';
                 statusText.innerText = "1/3: Erstelle ZIP auf dem Server...";
 
-                const response = await fetch('download_zip.php?event=' + eventUuid + '&export_db=1');
+                const response = await fetch('download_zip.php?event=' + encodeURIComponent(eventUuid) + '&export_db=1');
 
                 if (!response.ok) {
                     throw new Error("Fehler beim Erstellen des Backups. Server antwortete mit " + response.status);

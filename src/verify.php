@@ -1,9 +1,9 @@
 <?php
-require 'db.php';
+require_once __DIR__ . '/lib/auth.php';
 $msg = "";
 $success = false;
 
-if (isset($_GET['token'])) {
+if (isset($_GET['token']) && is_string($_GET['token'])) {
     $token = $_GET['token'];
 
     $stmt = $conn->prepare("SELECT id FROM users WHERE verify_token = ? AND is_verified = 0");
@@ -33,13 +33,13 @@ if (isset($_GET['token'])) {
 }
 
 $pageTitle = "Verifizierung";
-require 'header.php';
+require __DIR__ . '/lib/header.php';
 ?>
 <div style="height:100vh; display:flex; justify-content:center; align-items:center;">
     <div class="card text-center" style="width:300px;">
         <h2><?php echo $success ? "Juhu!" : "Oje..."; ?></h2>
         <p class="msg <?php echo $success ? 'success' : 'error'; ?>">
-            <?php echo htmlspecialchars($msg); ?>
+            <?php echo e($msg); ?>
         </p>
         <a href="login.php" class="btn btn-primary">Zum Login</a>
     </div>

@@ -1,0 +1,14 @@
+.git
+.github
+.gitignore
+.dockerignore
+.releaserc.yml
+.env
+*.env
+*.md
+docker-compose*.yml
+phpstan.neon*
+vendor
+src/vendor
+src/libs
+src/uploads
