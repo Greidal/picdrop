@@ -149,6 +149,11 @@ npm run stack:down
 - The database only sits on an internal network without internet access and keeps just the
   capabilities its entrypoint needs.
 
+## Contributing
+Contributions are welcome – see [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow and
+[AGENTS.md](AGENTS.md) for conventions and security rules (also read by AI coding agents).
+Security issues: please report them privately as described in [SECURITY.md](SECURITY.md).
+
 ## License
 Brought to you by [Klimarschanlage Vertrieb Ltd](https://klimarschanlage.de). Contact our [team via mail](mailto:vertrieb@klimarschanlage.de) for licensing information, help or to thank them for their incredible work.
 

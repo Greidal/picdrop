@@ -49,6 +49,8 @@ updates:
       github-actions:
         patterns: ["*"]
 
+  # Major @types/node updates must be merged together with raising `node-version`
+  # in .github/workflows/ci.yml to the same major (Dependabot can't update that).
   - package-ecosystem: npm
     directory: /tests/e2e
     schedule:

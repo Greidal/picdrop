@@ -1,0 +1,42 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! **Security issues must not be reported here** – see [SECURITY.md](https://github.com/Greidal/picdrop/blob/main/SECURITY.md).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the upload page on an iPhone
+        2. …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: PicDrop version
+      placeholder: v0.4.0
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device / browser (if relevant)
+      placeholder: iPhone 15, Safari
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Output of `docker compose logs picdrop` (remove personal data and secrets).
+      render: text
