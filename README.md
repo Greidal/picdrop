@@ -53,6 +53,8 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
 
 ### Setup & Run
 
+> Updating an existing installation? See [UPGRADING.md](UPGRADING.md) for the steps per release.
+
 1. Copy `example.env` to `.env` and fill in real values (DB passwords, SMTP, `APP_URL`, admin user).
 2. Start the stack:
    ```sh

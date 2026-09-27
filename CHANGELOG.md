@@ -1,6 +1,14 @@
 # [0.3.0](https://github.com/Greidal/picdrop/compare/v0.2.3...v0.3.0) (2026-09-26)
 
 
+### ⚠ Upgrade notes
+
+* **Rotate all secrets** (database, SMTP, admin password): `info.php` exposed the environment to every logged-in user.
+* Set a **new `REGISTRATION_CODE`** – there is no built-in default anymore; without it only invited users can register.
+* `SMTP_USER` and `SMTP_FROM_EMAIL` must be set; set `APP_URL` to the public URL.
+* See [UPGRADING.md](UPGRADING.md#030) for details.
+
+
 ### Bug Fixes
 
 * **security:** harden app against RCE, SQL injection, XSS and CSRF ([4f25807](https://github.com/Greidal/picdrop/commit/4f258073d3d05264b1d12519ae13fb85db629ff1))
