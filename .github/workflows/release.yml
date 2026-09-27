@@ -151,13 +151,16 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # no implicit latest from the semver tags; set explicitly below
+          flavor: |
+            latest=false
           tags: |
             # Standard-Tags for each Push
             type=ref,event=branch
             type=sha
 
-            # Latest-Tag (only on default branch, e.g. main)
-            type=raw,value=latest,enable={{is_default_branch}}
+            # latest = newest release (not every push to main; that is available as :main)
+            type=raw,value=latest,enable=${{ needs.release.outputs.new_release_published == 'true' }}
 
             # SemVer-Tags (only when Semantic Release builds a new version)
             type=semver,pattern=v{{version}},value=${{ needs.release.outputs.new_release_version }},enable=${{ needs.release.outputs.new_release_published == 'true' }}
