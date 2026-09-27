@@ -4,7 +4,7 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
 
 ## Features
 
-- **User Registration & Authentication**: Secure user registration, login, and verification.
+- **User Registration & Authentication**: Secure user registration, login, e-mail verification and password reset.
 - **Photo Gallery**: Upload, view, and download images. Gallery and slideshow views available.
 - **Event Management**: Admins can create and manage events.
 - **Leaderboard**: Track and display top users or event participants.
@@ -20,6 +20,7 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
 ├── docker-compose.yml         # Production-style stack (app + MariaDB, Traefik labels)
 ├── composer.json / .lock      # PHP dependencies (PHPMailer, QR code generator, PHPStan, PHPUnit)
 ├── tests/                     # PHPUnit tests
+│   └── e2e/                   # Playwright end-to-end tests (own package.json)
 ├── docker/
 │   ├── apache.conf            # Security headers, blocks lib/ and script execution in uploads/
 │   ├── php.ini                # Upload limits, session hardening, OPcache
@@ -70,7 +71,7 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
 | `REGISTRATION_CODE` | Code required for open sign-ups. **Empty = only invited users can register.** |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_EMAIL` | Creates an admin account on first start if all three are set. |
 | `DB_HOST` / `DB_USER` / `DB_PASS` / `DB_NAME` | Database connection. |
-| `SMTP_*` | Mail server settings (see `example.env`). |
+| `SMTP_*` | Mail server settings (see `example.env`). `SMTP_SECURE` is `tls`, `ssl` or `none`. |
 | `SKIP_MIGRATIONS=1` | Don't run migrations on container start. |
 
 ### Database server
@@ -98,9 +99,25 @@ composer test         # PHPUnit
 composer migrate      # apply migrations against DB_* from the environment
 ```
 
+### End-to-end tests
+Playwright tests run in real browsers (desktop Chrome and an iPhone for the guest page) against the
+production `docker-compose.yml` plus a test override with [Mailpit](https://mailpit.axllent.org/)
+catching all e-mails:
+
+```sh
+docker build -t picdrop:e2e .
+cd tests/e2e
+npm ci && npx playwright install chromium webkit
+npm run stack:up      # start the stack (http://localhost:18080, Mailpit UI: http://localhost:18025)
+npm test              # run the tests; `npx playwright test --ui` for the interactive mode
+npm run report        # HTML report with screenshots/traces of failures
+npm run stack:down
+```
+
 ## CI/CD
 - `.github/workflows/ci.yml` (pull requests): Composer validate/audit, PHP lint, PHPStan, PHPUnit,
-  migration test against MariaDB, Hadolint, a Docker build and a smoke test of the hardened container.
+  migration test against MariaDB, Hadolint, a Docker build, checks of the container hardening and the
+  Playwright end-to-end tests (report with screenshots/traces is uploaded on failure).
 - `.github/workflows/release.yml` (push to `main`): runs CI, then semantic-release (version + changelog)
   and publishes a multi-arch image (`linux/amd64`, `linux/arm64`) to `ghcr.io/<owner>/<repo>`.
   Every image carries an SBOM and SLSA build provenance, and the provenance is signed keylessly
@@ -116,6 +133,9 @@ composer migrate      # apply migrations against DB_* from the environment
 - Use strong, unique values for all passwords and the registration code; never commit `.env`.
 - Uploaded files are validated by content, stored under random names and can't be executed.
 - All state-changing forms are CSRF-protected; logins are throttled per account.
+- Password reset links are single-use, expire after 60 minutes and are stored hashed; verification
+  links expire after 7 days. Account mails are limited to 3 per address and hour, and the forms
+  don't reveal whether an account exists.
 - Optional per event: GPS/location data is removed from uploaded photos (lossless; JPEG, PNG, WebP).
 
 ### Container hardening
