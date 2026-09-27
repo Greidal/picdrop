@@ -49,8 +49,6 @@ jobs:
           # conventionalcommits@10 needs conventional-changelog-writer 9, which the
           # release notes generator of semantic-release 25 doesn't ship yet.
           extra_plugins: |
-            @semantic-release/changelog
-            @semantic-release/git
             conventional-changelog-conventionalcommits@9
 
   build-arch:

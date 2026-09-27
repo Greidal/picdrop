@@ -1,16 +1,19 @@
+# Changelog
+
+Release notes for versions after 0.4.0 are published as
+[GitHub Releases](https://github.com/Greidal/picdrop/releases) only.
+Steps required when updating an installation are listed in [UPGRADING.md](UPGRADING.md).
+
 ## [0.4.0](https://github.com/Greidal/picdrop/compare/v0.3.0...v0.4.0) (2026-09-27)
 
 ### ⚠ BREAKING CHANGES
 
-* Deployment changes, see UPGRADING.md:
-- back up the database before updating; MariaDB is upgraded from 10.11
-  to 12.3 LTS automatically on the first start
-- take over the new docker-compose.yml (container port 80 -> 8080,
-  hardening, internal database network)
-- own port mappings must target container port 8080
-- users are logged out when the container restarts (sessions in tmpfs)
+Deployment changes – see [UPGRADING.md](UPGRADING.md#040) for the full steps:
 
-* add upgrade notes and show them in release notes ([3b767f0](https://github.com/Greidal/picdrop/commit/3b767f07e2e6639c33423d3ef7d77bfd52d6051b))
+* **Back up the database before updating.** MariaDB is upgraded from 10.11 to 12.3 LTS automatically on the first start.
+* **Take over the new `docker-compose.yml`** (container port 80 → 8080, hardening, internal database network).
+* **Own port mappings** must target container port **8080**.
+* Users are logged out when the container restarts (sessions in tmpfs).
 
 ### Features
 

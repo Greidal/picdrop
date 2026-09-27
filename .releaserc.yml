@@ -61,11 +61,6 @@ plugins:
           - type: chore
             hidden: true
 
-  - "@semantic-release/changelog"
-
-  - - "@semantic-release/git"
-    - assets:
-      - CHANGELOG.md
-      message: "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
-
+  # Release notes are published as GitHub Releases only. Nothing is committed back
+  # to main, so the release job works with the protected branch.
   - "@semantic-release/github"
