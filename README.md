@@ -122,6 +122,8 @@ npm run stack:down
   Playwright end-to-end tests (report with screenshots/traces is uploaded on failure).
 - `.github/workflows/release.yml` (push to `main`): runs CI, then semantic-release (version + changelog)
   and publishes a multi-arch image (`linux/amd64`, `linux/arm64`) to `ghcr.io/<owner>/<repo>`.
+  Image tags: `latest`, `vX.Y.Z`, `vX.Y` and `vX` point to releases; `main` and `sha-<commit>` are
+  built from every push to `main` and may contain unreleased changes.
   Every image carries an SBOM and SLSA build provenance, and the provenance is signed keylessly
   via GitHub/Sigstore. Verify an image before deploying:
   ```sh
