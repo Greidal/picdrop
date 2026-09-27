@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-24.04
     services:
       db:
-        image: mariadb:10.11
+        image: mariadb:12.3
         env:
           MARIADB_ROOT_PASSWORD: root
           MARIADB_DATABASE: fotobox
@@ -136,7 +136,7 @@ jobs:
           docker run -d --name db --network picdrop-ci \
             -e MARIADB_ROOT_PASSWORD=root -e MARIADB_DATABASE=fotobox \
             --health-cmd="healthcheck.sh --connect --innodb_initialized" --health-interval=3s \
-            mariadb:10.11
+            mariadb:12.3
           for _ in $(seq 1 40); do [ "$(docker inspect -f '{{.State.Health.Status}}' db)" = healthy ] && break; sleep 3; done
           docker run -d --name app --network picdrop-ci -p 8080:8080 \
             --read-only --tmpfs /tmp --tmpfs /var/run/apache2 \

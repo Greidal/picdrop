@@ -59,7 +59,7 @@ services:
       - traefik
 
   db:
-    image: mariadb:10.11
+    image: mariadb:12.3
     container_name: picdrop_db
     restart: unless-stopped
     environment:

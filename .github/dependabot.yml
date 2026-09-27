@@ -33,7 +33,7 @@ updates:
       prefix: chore
       include: scope
     ignore:
-      # Database upgrades beyond patch releases (e.g. 10.11 -> 11.8) are done deliberately, LTS to LTS.
+      # Database upgrades beyond patch releases are done deliberately, LTS to LTS (see README).
       - dependency-name: mariadb
         update-types: [version-update:semver-major, version-update:semver-minor]
 

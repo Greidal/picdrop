@@ -73,6 +73,14 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
 | `SMTP_*` | Mail server settings (see `example.env`). |
 | `SKIP_MIGRATIONS=1` | Don't run migrations on container start. |
 
+### Database server
+- MariaDB **12.3 LTS** (supported until June 2029). `MARIADB_AUTO_UPGRADE` upgrades the data
+  directory automatically when the image version changes (tested from 10.11).
+- Always take a backup before changing the database version:
+  ```sh
+  docker compose exec db sh -c 'mariadb-dump -uroot -p"$MYSQL_ROOT_PASSWORD" --single-transaction --all-databases' > backup.sql
+  ```
+
 ### Database migrations
 - Migrations in `db/migrations` are applied automatically when the container starts
   (`php src/lib/migrate.php`), guarded by a DB lock so parallel starts are safe.
