@@ -1,0 +1,22 @@
+{
+  "name": "picdrop-e2e",
+  "private": true,
+  "description": "End-to-end tests for PicDrop (Playwright)",
+  "type": "module",
+  "scripts": {
+    "stack:up": "docker network inspect traefik >/dev/null 2>&1 || docker network create traefik; docker compose -p picdrop-e2e --env-file e2e.env -f ../../docker-compose.yml -f compose.e2e.yml up -d --wait",
+    "stack:down": "docker compose -p picdrop-e2e --env-file e2e.env -f ../../docker-compose.yml -f compose.e2e.yml down -v",
+    "stack:logs": "docker compose -p picdrop-e2e --env-file e2e.env -f ../../docker-compose.yml -f compose.e2e.yml logs",
+    "test": "playwright test",
+    "typecheck": "tsc -p .",
+    "report": "playwright show-report"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "22.20.4",
+    "typescript": "7.0.2"
+  }
+}

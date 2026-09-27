@@ -1,0 +1,24 @@
+# Test stack: the production docker-compose.yml (incl. all hardening) plus this override.
+#   docker network create traefik   # once; the production file expects it
+#   docker compose -p picdrop-e2e --env-file tests/e2e/e2e.env \
+#     -f docker-compose.yml -f tests/e2e/compose.e2e.yml up -d --wait
+services:
+  picdrop:
+    image: ${PICDROP_IMAGE:-picdrop:e2e}
+    ports: ["127.0.0.1:18080:8080"]
+    environment:
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_SECURE: none
+    depends_on:
+      mailpit:
+        condition: service_started
+
+  # Catches all outgoing mail; the tests read it via Mailpit's HTTP API.
+  mailpit:
+    image: axllent/mailpit:v1
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    ports: ["127.0.0.1:18025:8025"]
+    networks: [backend, traefik]

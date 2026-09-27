@@ -48,3 +48,15 @@ updates:
     groups:
       github-actions:
         patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /tests/e2e
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: test
+      include: scope
+    groups:
+      e2e:
+        patterns: ["*"]
