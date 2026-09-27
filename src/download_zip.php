@@ -43,13 +43,6 @@ if (is_dir($sourceDir)) {
     }
 }
 
-/** Neutralises values that spreadsheet apps would interpret as formulas (CSV injection). */
-function csvCell(?string $value): string
-{
-    $value = str_replace([';', "\r", "\n"], ' ', (string) $value);
-    return preg_match('/^[=+\-@\t]/', $value) ? "'" . $value : $value;
-}
-
 $csvData = "Dateiname;Uploader;Zeitstempel;Getraenk;EventID\n";
 
 $stmt = $conn->prepare("
