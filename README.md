@@ -5,7 +5,7 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
 ## Features
 
 - **User Registration & Authentication**: Secure user registration, login, e-mail verification and password reset.
-- **Photo Gallery**: Upload, view, and download images. Gallery and slideshow views available.
+- **Photo Gallery**: Guests upload photos from their phone – also several at once, with progress – and view them in the gallery and live slideshow.
 - **Event Management**: Admins can create and manage events.
 - **Leaderboard**: Track and display top users or event participants.
 - **Admin Panel**: Manage users, events, and gallery content.
