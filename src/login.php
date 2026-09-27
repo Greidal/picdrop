@@ -7,6 +7,7 @@ if (isLoggedIn()) {
 }
 
 $msg = "";
+$showResendLink = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     requireCsrf();
@@ -30,6 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $msg = "Ungültige Zugangsdaten.";
         } elseif ($row['is_verified'] == 0) {
             $msg = "Bitte bestätige erst deine E-Mail-Adresse! 📧";
+            $showResendLink = true;
         } else {
             clearFailedLogins($conn, $email);
             if (password_needs_rehash($row['password'], PASSWORD_DEFAULT)) {
@@ -54,6 +56,9 @@ require __DIR__ . '/lib/header.php';
         <?php if ($msg): ?>
             <p class='msg error'><?php echo e($msg); ?></p>
         <?php endif; ?>
+        <?php if ($showResendLink): ?>
+            <p style="font-size:0.9rem;"><a href="resend_verification.php">Bestätigungsmail erneut senden</a></p>
+        <?php endif; ?>
 
         <form method="post">
             <?php echo csrfField(); ?>
@@ -63,6 +68,7 @@ require __DIR__ . '/lib/header.php';
         </form>
 
         <p style="margin-top:20px; font-size:0.9rem;">
+            <a href="forgot_password.php">Passwort vergessen?</a><br>
             <a href="register.php">Noch keinen Account?</a>
         </p>
     </div>

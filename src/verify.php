@@ -6,7 +6,10 @@ $success = false;
 if (isset($_GET['token']) && is_string($_GET['token'])) {
     $token = $_GET['token'];
 
-    $stmt = $conn->prepare("SELECT id FROM users WHERE verify_token = ? AND is_verified = 0");
+    $stmt = $conn->prepare(
+        "SELECT id FROM users WHERE verify_token = ? AND is_verified = 0
+         AND (verify_expires_at IS NULL OR verify_expires_at > NOW())"
+    );
     $stmt->bind_param("s", $token);
     $stmt->execute();
     $res = $stmt->get_result();
@@ -15,7 +18,7 @@ if (isset($_GET['token']) && is_string($_GET['token'])) {
         $user = $res->fetch_assoc();
         $uid = $user['id'];
 
-        $upd = $conn->prepare("UPDATE users SET is_verified = 1, verify_token = NULL WHERE id = ?");
+        $upd = $conn->prepare("UPDATE users SET is_verified = 1, verify_token = NULL, verify_expires_at = NULL WHERE id = ?");
         $upd->bind_param("i", $uid);
 
         if ($upd->execute()) {
@@ -42,6 +45,9 @@ require __DIR__ . '/lib/header.php';
             <?php echo e($msg); ?>
         </p>
         <a href="login.php" class="btn btn-primary">Zum Login</a>
+        <?php if (!$success): ?>
+            <p style="margin-top:20px; font-size:0.9rem;"><a href="resend_verification.php">Neuen Bestätigungslink anfordern</a></p>
+        <?php endif; ?>
     </div>
 </div>
 </body>
