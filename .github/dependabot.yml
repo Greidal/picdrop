@@ -35,7 +35,7 @@ updates:
     ignore:
       # Database upgrades beyond patch releases are done deliberately, LTS to LTS (see README).
       - dependency-name: mariadb
-        update-types: [version-update:semver-major, version-update:semver-minor]
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
 
   - package-ecosystem: github-actions
     directory: /
