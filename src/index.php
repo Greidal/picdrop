@@ -1,16 +1,18 @@
 <?php
 require_once __DIR__ . '/lib/auth.php';
 require_once __DIR__ . '/lib/images.php';
+require_once __DIR__ . '/lib/metadata.php';
 
 $eventId = $_GET['event'] ?? '';
 $eventName = getEventOrDie($conn, $eventId);
 
-// load event setting whether the "bar" (drink) button should be shown
-$stmt2 = $conn->prepare("SELECT setting_show_bar FROM events WHERE uuid = ?");
+// load event settings: show the "bar" (drink) button, strip location data from photos
+$stmt2 = $conn->prepare("SELECT setting_show_bar, setting_strip_location FROM events WHERE uuid = ?");
 $stmt2->bind_param("s", $eventId);
 $stmt2->execute();
 $row = $stmt2->get_result()->fetch_assoc();
 $showBar = isset($row['setting_show_bar']) ? boolval($row['setting_show_bar']) : true;
+$stripLocation = !empty($row['setting_strip_location']);
 
 $prefilledName = "";
 if (isLoggedIn()) {
@@ -69,6 +71,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $msgClass = "error";
             } else {
                 $fileName = basename($storedPath);
+                if ($stripLocation && stripLocationMetadata($storedPath) === METADATA_FAILED) {
+                    error_log("PicDrop: could not strip location data from $storedPath");
+                }
                 $deviceParam = $deviceUuid !== '' ? $deviceUuid : null;
                 $stmt = $conn->prepare("INSERT INTO uploads (event_id, device_uuid, filename, uploader_name, drink_id) VALUES (?, ?, ?, ?, ?)");
                 $stmt->bind_param("ssssi", $eventId, $deviceParam, $fileName, $uploader, $drinkId);

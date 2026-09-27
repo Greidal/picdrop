@@ -43,12 +43,15 @@ jobs:
       - name: PHPStan
         run: composer analyse -- --no-progress --error-format=github
 
+      - name: Unit tests
+        run: composer test
+
   migrations:
     name: Database migrations
     runs-on: ubuntu-24.04
     services:
       db:
-        image: mariadb:10.11
+        image: mariadb:12.3
         env:
           MARIADB_ROOT_PASSWORD: root
           MARIADB_DATABASE: fotobox
@@ -99,9 +102,11 @@ jobs:
           dockerfile: Dockerfile
 
   docker-build:
-    name: Docker build (smoke test)
+    name: Docker build & end-to-end tests
     runs-on: ubuntu-24.04
     needs: [php, dockerfile]
+    env:
+      PICDROP_IMAGE: picdrop:ci
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -126,3 +131,55 @@ jobs:
             if (!function_exists("imagewebp")) { fwrite(STDERR, "GD without WebP\n"); exit(1); }
             echo "ok\n";'
           docker run --rm --entrypoint test picdrop:ci -f /var/www/vendor/autoload.php
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tests/e2e/package-lock.json
+
+      - name: Install E2E dependencies and browsers
+        working-directory: tests/e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium webkit
+
+      - name: Start the stack (production docker-compose.yml + test override)
+        working-directory: tests/e2e
+        run: npm run stack:up
+
+      - name: Check container hardening
+        run: |
+          test "$(docker exec picdrop id -un)" = www-data
+          test "$(docker inspect -f '{{.HostConfig.ReadonlyRootfs}}' picdrop)" = true
+          test "$(docker exec picdrop grep CapEff /proc/self/status | awk '{print $2}')" = 0000000000000000
+          if docker exec picdrop sh -c 'echo x > /var/www/html/index.php' 2>/dev/null; then
+            echo "::error::application code is writable by the web server user"; exit 1
+          fi
+          if docker exec picdrop_db timeout 5 bash -c '</dev/tcp/1.1.1.1/443' 2>/dev/null; then
+            echo "::error::database container can reach the internet"; exit 1
+          fi
+
+      - name: Type-check E2E tests
+        working-directory: tests/e2e
+        run: npm run typecheck
+
+      - name: Run end-to-end tests
+        working-directory: tests/e2e
+        run: npm test
+
+      - name: Container logs
+        if: failure()
+        working-directory: tests/e2e
+        run: npm run stack:logs
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            tests/e2e/playwright-report
+            tests/e2e/test-results
+          retention-days: 7

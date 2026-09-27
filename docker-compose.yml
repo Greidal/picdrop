@@ -8,6 +8,22 @@ services:
         condition: service_healthy
     volumes:
       - picdrop_uploads:/var/www/html/uploads
+    # Hardening: immutable filesystem (only uploads + tmpfs are writable), no Linux capabilities,
+    # no privilege escalation, resource limits.
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+      - /var/run/apache2:size=1m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 1g
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
     environment:
       # Database Configuration
       DB_HOST: db
@@ -37,12 +53,13 @@ services:
       - "traefik.http.routers.picdrop.tls=true"
       - "traefik.http.routers.picdrop.tls.certresolver=letsencrypt"
       - "traefik.docker.network=traefik"
+      - "traefik.http.services.picdrop.loadbalancer.server.port=8080"
     networks:
-      - default
+      - backend
       - traefik
 
   db:
-    image: mariadb:10.11
+    image: mariadb:12.3
     container_name: picdrop_db
     restart: unless-stopped
     environment:
@@ -54,6 +71,15 @@ services:
       MARIADB_AUTO_UPGRADE: "1"
     volumes:
       - picdrop_db:/var/lib/mysql
+    # The entrypoint needs a few capabilities to prepare the data dir and drop to the mysql user.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    logging: *logging
+    networks:
+      - backend
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
@@ -62,6 +88,9 @@ services:
       start_period: 30s
 
 networks:
+  # Database traffic only; the DB has no route to the outside world.
+  backend:
+    internal: true
   traefik:
     external: true
 

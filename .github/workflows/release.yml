@@ -46,9 +46,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          # conventionalcommits@10 needs conventional-changelog-writer 9, which the
+          # release notes generator of semantic-release 25 doesn't ship yet.
           extra_plugins: |
             @semantic-release/changelog
             @semantic-release/git
+            conventional-changelog-conventionalcommits@9
 
   build-arch:
     name: Build ${{ matrix.arch }}
@@ -92,6 +95,9 @@ jobs:
           file: ./Dockerfile
           platforms: ${{ matrix.platform }}
           outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          # SBOM and SLSA provenance are attached to the image as attestations
+          sbom: true
+          provenance: mode=max
           cache-from: type=gha,scope=build-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=build-${{ matrix.arch }}
 
@@ -115,7 +121,12 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [release, build-arch]
     permissions:
+      contents: read
       packages: write
+      # keyless signing of the build provenance via GitHub OIDC / Sigstore
+      id-token: write
+      attestations: write
+      artifact-metadata: write
     steps:
       - name: Download digests
         uses: actions/download-artifact@v8
@@ -164,3 +175,16 @@ jobs:
           echo "From digests: ${digests}"
           # shellcheck disable=SC2086 # tags/digests are meant to be split into arguments
           docker buildx imagetools create ${tags} ${digests}
+
+      - name: Get digest of the multi-arch image
+        id: manifest
+        run: |
+          digest=$(docker buildx imagetools inspect "${REGISTRY}/${IMAGE_NAME}:${{ steps.meta.outputs.version }}" --format '{{json .Manifest}}' | jq -r .digest)
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+
+      - name: Attest build provenance (signed, pushed to the registry)
+        uses: actions/attest@v4
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.manifest.outputs.digest }}
+          push-to-registry: true

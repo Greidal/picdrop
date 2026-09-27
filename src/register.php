@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/lib/auth.php';
 require_once __DIR__ . '/lib/mail.php';
+require_once __DIR__ . '/lib/account.php';
 
 $msg = "";
 $msgClass = "";
@@ -55,15 +56,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $msg = "User existiert bereits (E-Mail oder Anzeigename).";
             $msgClass = "error";
         } else {
-            $verifyToken = bin2hex(random_bytes(32));
             $hash = password_hash($pass, PASSWORD_DEFAULT);
 
             $conn->begin_transaction();
             try {
-                $stmt = $conn->prepare("INSERT INTO users (username, email, password, source, verify_token, is_verified) VALUES (?, ?, ?, 'local', ?, 0)");
-                $stmt->bind_param("ssss", $displayName, $email, $hash, $verifyToken);
+                $stmt = $conn->prepare("INSERT INTO users (username, email, password, source, is_verified) VALUES (?, ?, ?, 'local', 0)");
+                $stmt->bind_param("sss", $displayName, $email, $hash);
                 $stmt->execute();
                 $newUserId = $conn->insert_id;
+                $verifyToken = issueVerificationToken($conn, $newUserId);
 
                 if ($inviteEventUuid) {
                     $stmt = $conn->prepare("INSERT IGNORE INTO event_users (event_uuid, user_id) VALUES (?, ?)");
@@ -76,6 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $conn->commit();
 
+                logAccountMail($conn, $email, 'verify');
                 if (sendVerificationMail($email, $verifyToken)) {
                     $msg = "Account erstellt! 📩 Bitte E-Mail bestätigen.";
                     $msgClass = "success";

@@ -5,7 +5,8 @@ define('SMTP_HOST', getenv('SMTP_HOST') ?: 'smtp.ionos.de');
 define('SMTP_USER', getenv('SMTP_USER') ?: '');
 define('SMTP_PASS', getenv('SMTP_PASS') ?: '');
 define('SMTP_PORT', (int) (getenv('SMTP_PORT') ?: 587));
-define('SMTP_SECURE', getenv('SMTP_SECURE') ?: 'tls');
+// 'tls' (STARTTLS), 'ssl' (implicit TLS) or 'none' (e.g. a local test mail server).
+define('SMTP_SECURE', (getenv('SMTP_SECURE') ?: 'tls') === 'none' ? '' : (getenv('SMTP_SECURE') ?: 'tls'));
 define('SMTP_FROM_EMAIL', getenv('SMTP_FROM_EMAIL') ?: '');
 define('SMTP_FROM_NAME', getenv('SMTP_FROM_NAME') ?: 'PicDrop Fotobox');
 
@@ -22,3 +23,7 @@ define('INVITE_TTL_DAYS', 14);
 define('LOGIN_MAX_ATTEMPTS', 5);
 define('LOGIN_LOCK_MINUTES', 15);
 define('PASSWORD_MIN_LENGTH', 10);
+define('VERIFY_TTL_DAYS', 7);
+define('PASSWORD_RESET_TTL_MINUTES', 60);
+// Max. account mails (verification, password reset) per address and hour.
+define('ACCOUNT_MAILS_PER_HOUR', 3);

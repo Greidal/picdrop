@@ -37,25 +37,35 @@ RUN set -eux; \
     apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
     rm -rf /var/lib/apt/lists/*; \
     mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"; \
-    a2enmod headers
+    a2enmod headers; \
+    # unprivileged port so Apache can run without root
+    sed -ri 's/^Listen 80$/Listen 8080/' /etc/apache2/ports.conf; \
+    sed -ri 's/<VirtualHost \*:80>/<VirtualHost *:8080>/' /etc/apache2/sites-available/000-default.conf; \
+    # no setuid/setgid binaries in the image
+    find / -xdev -perm /6000 -type f -exec chmod a-s {} +
 
 COPY docker/php.ini "$PHP_INI_DIR/conf.d/99-picdrop.ini"
 COPY docker/apache.conf /etc/apache2/conf-enabled/zz-picdrop.conf
 COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/picdrop-entrypoint
 
 # Everything outside /var/www/html is not reachable via HTTP.
+# Code is owned by root and read-only for the web server user; only uploads/ is writable.
 COPY --from=vendor /app/vendor /var/www/vendor
 COPY db/migrations /var/www/db/migrations
 COPY src/ /var/www/html/
 
 RUN mkdir -p /var/www/html/uploads \
-    && chown -R www-data:www-data /var/www/html/uploads
+    && chown www-data:www-data /var/www/html/uploads \
+    && chmod 0750 /var/www/html/uploads
+
+# www-data (numeric so orchestrators can verify runAsNonRoot)
+USER 33:33
 
 VOLUME ["/var/www/html/uploads"]
-EXPOSE 80
+EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD ["curl", "-fsS", "-o", "/dev/null", "http://localhost/healthz.php"]
+    CMD ["curl", "-fsS", "-o", "/dev/null", "http://localhost:8080/healthz.php"]
 
 ENTRYPOINT ["picdrop-entrypoint"]
 CMD ["apache2-foreground"]

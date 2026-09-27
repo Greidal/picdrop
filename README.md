@@ -4,7 +4,7 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
 
 ## Features
 
-- **User Registration & Authentication**: Secure user registration, login, and verification.
+- **User Registration & Authentication**: Secure user registration, login, e-mail verification and password reset.
 - **Photo Gallery**: Upload, view, and download images. Gallery and slideshow views available.
 - **Event Management**: Admins can create and manage events.
 - **Leaderboard**: Track and display top users or event participants.
@@ -18,7 +18,9 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
 ```
 ├── Dockerfile                 # Multi-stage build (Composer deps + PHP/Apache runtime)
 ├── docker-compose.yml         # Production-style stack (app + MariaDB, Traefik labels)
-├── composer.json / .lock      # PHP dependencies (PHPMailer, QR code generator, PHPStan)
+├── composer.json / .lock      # PHP dependencies (PHPMailer, QR code generator, PHPStan, PHPUnit)
+├── tests/                     # PHPUnit tests
+│   └── e2e/                   # Playwright end-to-end tests (own package.json)
 ├── docker/
 │   ├── apache.conf            # Security headers, blocks lib/ and script execution in uploads/
 │   ├── php.ini                # Upload limits, session hardening, OPcache
@@ -32,6 +34,7 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
     │   ├── helpers.php        # Escaping, CSRF, UUIDs, safe image uploads
     │   ├── images.php         # Thumbnail / display-size variants
     │   ├── mail.php           # E-mails via PHPMailer
+    │   ├── metadata.php       # Lossless removal of GPS/location data from photos
     │   ├── migrate.php        # CLI migration runner
     │   └── migrations.php     # Migration logic + bootstrap admin
     ├── index.php              # Guest upload page (per event)
@@ -50,13 +53,16 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
 
 ### Setup & Run
 
+> Updating an existing installation? See [UPGRADING.md](UPGRADING.md) for the steps per release.
+
 1. Copy `example.env` to `.env` and fill in real values (DB passwords, SMTP, `APP_URL`, admin user).
 2. Start the stack:
    ```sh
    docker compose up -d
    ```
    The provided `docker-compose.yml` expects an external `traefik` network. For a local test without
-   Traefik, add `ports: ["8080:80"]` to the `picdrop` service and open http://localhost:8080.
+   Traefik, add `ports: ["8080:8080"]` to the `picdrop` service and open http://localhost:8080.
+   The container listens on port **8080** (it runs without root).
 
 ### Configuration
 
@@ -67,8 +73,16 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
 | `REGISTRATION_CODE` | Code required for open sign-ups. **Empty = only invited users can register.** |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` / `ADMIN_EMAIL` | Creates an admin account on first start if all three are set. |
 | `DB_HOST` / `DB_USER` / `DB_PASS` / `DB_NAME` | Database connection. |
-| `SMTP_*` | Mail server settings (see `example.env`). |
+| `SMTP_*` | Mail server settings (see `example.env`). `SMTP_SECURE` is `tls`, `ssl` or `none`. |
 | `SKIP_MIGRATIONS=1` | Don't run migrations on container start. |
+
+### Database server
+- MariaDB **12.3 LTS** (supported until June 2029). `MARIADB_AUTO_UPGRADE` upgrades the data
+  directory automatically when the image version changes (tested from 10.11).
+- Always take a backup before changing the database version:
+  ```sh
+  docker compose exec db sh -c 'mariadb-dump -uroot -p"$MYSQL_ROOT_PASSWORD" --single-transaction --all-databases' > backup.sql
+  ```
 
 ### Database migrations
 - Migrations in `db/migrations` are applied automatically when the container starts
@@ -83,20 +97,57 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
 composer install      # dependencies incl. PHPStan
 composer lint         # php -l on all files
 composer analyse      # PHPStan
+composer test         # PHPUnit
 composer migrate      # apply migrations against DB_* from the environment
 ```
 
+### End-to-end tests
+Playwright tests run in real browsers (desktop Chrome and an iPhone for the guest page) against the
+production `docker-compose.yml` plus a test override with [Mailpit](https://mailpit.axllent.org/)
+catching all e-mails:
+
+```sh
+docker build -t picdrop:e2e .
+cd tests/e2e
+npm ci && npx playwright install chromium webkit
+npm run stack:up      # start the stack (http://localhost:18080, Mailpit UI: http://localhost:18025)
+npm test              # run the tests; `npx playwright test --ui` for the interactive mode
+npm run report        # HTML report with screenshots/traces of failures
+npm run stack:down
+```
+
 ## CI/CD
-- `.github/workflows/ci.yml` (pull requests): Composer validate/audit, PHP lint, PHPStan, migration
-  test against MariaDB, Hadolint and a Docker build smoke test.
+- `.github/workflows/ci.yml` (pull requests): Composer validate/audit, PHP lint, PHPStan, PHPUnit,
+  migration test against MariaDB, Hadolint, a Docker build, checks of the container hardening and the
+  Playwright end-to-end tests (report with screenshots/traces is uploaded on failure).
 - `.github/workflows/release.yml` (push to `main`): runs CI, then semantic-release (version + changelog)
   and publishes a multi-arch image (`linux/amd64`, `linux/arm64`) to `ghcr.io/<owner>/<repo>`.
+  Every image carries an SBOM and SLSA build provenance, and the provenance is signed keylessly
+  via GitHub/Sigstore. Verify an image before deploying:
+  ```sh
+  gh attestation verify oci://ghcr.io/greidal/picdrop:v0.4.0 --owner Greidal
+  docker buildx imagetools inspect ghcr.io/greidal/picdrop:v0.4.0 --format '{{json .SBOM}}'
+  ```
 - Dependabot keeps Composer packages, Docker images and GitHub Actions up to date (weekly).
+  MariaDB major/minor upgrades are excluded on purpose — upgrade between LTS versions deliberately.
 
 ## Security Notes
 - Use strong, unique values for all passwords and the registration code; never commit `.env`.
 - Uploaded files are validated by content, stored under random names and can't be executed.
 - All state-changing forms are CSRF-protected; logins are throttled per account.
+- Password reset links are single-use, expire after 60 minutes and are stored hashed; verification
+  links expire after 7 days. Account mails are limited to 3 per address and hour, and the forms
+  don't reveal whether an account exists.
+- Optional per event: GPS/location data is removed from uploaded photos (lossless; JPEG, PNG, WebP).
+
+### Container hardening
+- Apache/PHP run as `www-data` (UID 33) on port 8080; application code is owned by root and read-only.
+- No setuid/setgid binaries; PHP has shell functions and remote file access disabled and is
+  restricted to `/var/www` and `/tmp` (`open_basedir`).
+- `docker-compose.yml` runs the app with a read-only root filesystem (tmpfs for `/tmp`), all Linux
+  capabilities dropped, `no-new-privileges`, PID/memory limits and rotated logs.
+- The database only sits on an internal network without internet access and keeps just the
+  capabilities its entrypoint needs.
 
 ## License
 Brought to you by [Klimarschanlage Vertrieb Ltd](https://klimarschanlage.de). Contact our [team via mail](mailto:vertrieb@klimarschanlage.de) for licensing information, help or to thank them for their incredible work.

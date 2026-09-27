@@ -12,3 +12,6 @@ vendor
 src/vendor
 src/libs
 src/uploads
+tests
+phpunit.xml.dist
+.phpunit.result.cache

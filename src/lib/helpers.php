@@ -16,9 +16,9 @@ function e($value): string
     return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
-function isHttps(): bool
+function isHttps(?string $appUrl = null): bool
 {
-    if (str_starts_with(APP_URL, 'https://')) {
+    if (str_starts_with($appUrl ?? APP_URL, 'https://')) {
         return true;
     }
     if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
@@ -28,13 +28,14 @@ function isHttps(): bool
 }
 
 /** Absolute base URL without trailing slash. Prefers APP_URL over the (spoofable) Host header. */
-function appBaseUrl(): string
+function appBaseUrl(?string $appUrl = null): string
 {
-    if (APP_URL !== '') {
-        return APP_URL;
+    $appUrl = rtrim($appUrl ?? APP_URL, '/');
+    if ($appUrl !== '') {
+        return $appUrl;
     }
     $dir = rtrim(str_replace('\\', '/', dirname($_SERVER['PHP_SELF'] ?? '/')), '/');
-    return (isHttps() ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $dir;
+    return (isHttps('') ? 'https' : 'http') . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . $dir;
 }
 
 function generateUuidV4(): string
@@ -64,13 +65,34 @@ function csrfField(): string
     return '<input type="hidden" name="csrf_token" value="' . e(csrfToken()) . '">';
 }
 
+function isValidCsrfToken($sent): bool
+{
+    return is_string($sent)
+        && !empty($_SESSION['csrf_token'])
+        && is_string($_SESSION['csrf_token'])
+        && hash_equals($_SESSION['csrf_token'], $sent);
+}
+
 function requireCsrf(): void
 {
-    $sent = $_POST['csrf_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
-    if (!is_string($sent) || empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $sent)) {
+    if (!isValidCsrfToken($_POST['csrf_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? null))) {
         http_response_code(403);
         die("⛔ Sitzung abgelaufen. Bitte Seite neu laden und erneut versuchen.");
     }
+}
+
+/** File extension for an allowed image type, detected from the file content; null otherwise. */
+function detectImageExtension(string $path): ?string
+{
+    $mime = (new finfo(FILEINFO_MIME_TYPE))->file($path);
+    return is_string($mime) ? (ALLOWED_IMAGE_TYPES[$mime] ?? null) : null;
+}
+
+/** Neutralises values that spreadsheet apps would interpret as formulas (CSV injection). */
+function csvCell(?string $value): string
+{
+    $value = str_replace([';', "\r", "\n"], ' ', (string) $value);
+    return preg_match('/^[=+\-@\t]/', $value) ? "'" . $value : $value;
 }
 
 /**
@@ -83,8 +105,7 @@ function storeUploadedImage(array $file, string $targetDir): ?string
         return null;
     }
 
-    $mime = (new finfo(FILEINFO_MIME_TYPE))->file($file['tmp_name']);
-    $extension = ALLOWED_IMAGE_TYPES[$mime] ?? null;
+    $extension = detectImageExtension($file['tmp_name']);
     if ($extension === null) {
         return null;
     }

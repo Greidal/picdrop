@@ -23,6 +23,25 @@ function sendVerificationMail(string $toEmail, string $token): bool
     );
 }
 
+function sendPasswordResetMail(string $toEmail, string $token): bool
+{
+    $link = e(appBaseUrl() . "/reset_password.php?token=" . urlencode($token));
+    $minutes = PASSWORD_RESET_TTL_MINUTES;
+
+    return sendMail(
+        $toEmail,
+        'Passwort zurücksetzen für deinen ' . PAGE_TITLE . ' Account 🔑',
+        "
+            <h2>Passwort zurücksetzen</h2>
+            <p>Jemand (hoffentlich du) möchte das Passwort für diesen Account zurücksetzen.</p>
+            <p><a href='$link' style='background:#ff0055; color:white; padding:10px 20px; text-decoration:none; border-radius:5px;'>Neues Passwort festlegen</a></p>
+            <p>Der Link ist $minutes Minuten gültig und kann nur einmal verwendet werden.</p>
+            <p>Du hast das nicht angefordert? Dann ignoriere diese Mail einfach – dein Passwort bleibt unverändert.</p>
+        ",
+        "Neues Passwort festlegen ($minutes Minuten gültig): " . html_entity_decode($link)
+    );
+}
+
 function sendEventAccessMail(string $toEmail, string $eventName, string $eventUuid): bool
 {
     $link = e(appBaseUrl() . "/manage_event.php?event=" . urlencode($eventUuid));

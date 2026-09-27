@@ -3,6 +3,7 @@ parameters:
     paths:
         - src
         - db/migrations
+        - tests
     excludePaths:
         - src/libs/*
         - src/vendor/*

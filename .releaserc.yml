@@ -3,8 +3,13 @@ branches:
   - master
 plugins:
   - - "@semantic-release/commit-analyzer"
-    - preset: angular
+    - preset: conventionalcommits
       releaseRules:
+        # Pre-1.0: breaking changes (e.g. required deployment changes, documented
+        # via a "BREAKING CHANGE:" footer) bump the minor version, not the major.
+        # Remove this rule when going 1.0.
+        - breaking: true
+          release: minor
         - type: FEAT
           release: minor
         - type: FIX
@@ -17,19 +22,42 @@ plugins:
           release: patch
 
   - - "@semantic-release/release-notes-generator"
-    - preset: angular
+    - preset: conventionalcommits
       presetConfig:
+        # First matching entry wins, so scoped entries come before the generic ones.
         types:
-          - type: FEAT
-            section: Features
           - type: feat
             section: Features
-          - type: FIX
-            section: Bug Fixes
+          - type: FEAT
+            section: Features
+          - type: fix
+            scope: deps
+            section: Dependencies
+          - type: chore
+            scope: deps
+            section: Dependencies
           - type: fix
             section: Bug Fixes
+          - type: FIX
+            section: Bug Fixes
+          - type: perf
+            section: Performance
+          - type: revert
+            section: Reverts
+          - type: refactor
+            section: Code Refactoring
           - type: REFAC
             section: Code Refactoring
+          - type: docs
+            hidden: true
+          - type: test
+            hidden: true
+          - type: ci
+            hidden: true
+          - type: build
+            hidden: true
+          - type: style
+            hidden: true
           - type: chore
             hidden: true
 
