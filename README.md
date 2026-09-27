@@ -95,6 +95,12 @@ composer migrate      # apply migrations against DB_* from the environment
   migration test against MariaDB, Hadolint, a Docker build and a smoke test of the hardened container.
 - `.github/workflows/release.yml` (push to `main`): runs CI, then semantic-release (version + changelog)
   and publishes a multi-arch image (`linux/amd64`, `linux/arm64`) to `ghcr.io/<owner>/<repo>`.
+  Every image carries an SBOM and SLSA build provenance, and the provenance is signed keylessly
+  via GitHub/Sigstore. Verify an image before deploying:
+  ```sh
+  gh attestation verify oci://ghcr.io/greidal/picdrop:v0.4.0 --owner Greidal
+  docker buildx imagetools inspect ghcr.io/greidal/picdrop:v0.4.0 --format '{{json .SBOM}}'
+  ```
 - Dependabot keeps Composer packages, Docker images and GitHub Actions up to date (weekly).
   MariaDB major/minor upgrades are excluded on purpose — upgrade between LTS versions deliberately.
 
