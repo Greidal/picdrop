@@ -1,7 +1,6 @@
 <?php
 require_once __DIR__ . '/lib/auth.php';
-require_once __DIR__ . '/lib/images.php';
-require_once __DIR__ . '/lib/metadata.php';
+require_once __DIR__ . '/lib/uploads.php';
 
 $eventId = $_GET['event'] ?? '';
 $eventName = getEventOrDie($conn, $eventId);
@@ -34,67 +33,34 @@ if ($flash) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $deviceUuid = mb_substr(trim((string) ($_POST['device_uuid'] ?? '')), 0, 64);
+    // The multi-photo upload sends one photo per request and expects JSON.
+    $wantsJson = str_contains($_SERVER['HTTP_ACCEPT'] ?? '', 'application/json');
 
-    if ($deviceUuid !== '') {
-        $banCheck = $conn->prepare("SELECT id FROM blocked_devices WHERE event_uuid = ? AND device_uuid = ?");
-        $banCheck->bind_param("ss", $eventId, $deviceUuid);
-        $banCheck->execute();
-        if ($banCheck->get_result()->num_rows > 0) {
-            http_response_code(403);
-            die("⛔ Dein Gerät wurde für dieses Event gesperrt. Wende dich an den Organisator der Veranstaltung.");
-        }
+    if (empty($_FILES) && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+        // Request exceeded post_max_size: PHP dropped the whole body.
+        $result = uploadResult(false, 413, "Das Bild ist zu groß.");
+    } else {
+        $result = handleGuestUpload($conn, $eventId, $_FILES['image'] ?? [], $_POST, $stripLocation);
     }
 
-    if (isset($_FILES['image']) && $_FILES['image']['error'] !== UPLOAD_ERR_NO_FILE) {
-        $error = $_FILES['image']['error'];
-
-        if ($error === UPLOAD_ERR_OK) {
-            $uploader = mb_substr(trim((string) ($_POST['uploader'] ?? '')), 0, 100);
-            $drinkId = !empty($_POST['drink_id']) ? intval($_POST['drink_id']) : null;
-
-            if ($drinkId) {
-                // Only accept drinks that belong to this event.
-                $drinkCheck = $conn->prepare("SELECT id FROM drinks WHERE id = ? AND event_uuid = ?");
-                $drinkCheck->bind_param("is", $drinkId, $eventId);
-                $drinkCheck->execute();
-                if ($drinkCheck->get_result()->num_rows === 0) {
-                    $drinkId = null;
-                }
-            }
-
-            if ($drinkId && $uploader === '') {
-                $msg = "Wer trinkt das? Bitte Namen angeben!";
-                $msgClass = "error";
-            } elseif (!$storedPath = storeUploadedImage($_FILES['image'], __DIR__ . '/uploads/' . $eventId)) {
-                $msg = "Das ist leider kein gültiges Bild (erlaubt: JPG, PNG, WebP, GIF, HEIC).";
-                $msgClass = "error";
-            } else {
-                $fileName = basename($storedPath);
-                if ($stripLocation && stripLocationMetadata($storedPath) === METADATA_FAILED) {
-                    error_log("PicDrop: could not strip location data from $storedPath");
-                }
-                $deviceParam = $deviceUuid !== '' ? $deviceUuid : null;
-                $stmt = $conn->prepare("INSERT INTO uploads (event_id, device_uuid, filename, uploader_name, drink_id) VALUES (?, ?, ?, ?, ?)");
-                $stmt->bind_param("ssssi", $eventId, $deviceParam, $fileName, $uploader, $drinkId);
-                $stmt->execute();
-
-                createAllImageVariants($eventId, $fileName);
-
-                $txt = $drinkId ? "Prost! 🍻 Check-in erledigt!" : "Bild ist auf der Leinwand! 🥳";
-                setFlashMessage($txt, "success");
-
-                header("Location: index.php?event=" . urlencode($eventId));
-                exit;
-            }
-        } elseif ($error === UPLOAD_ERR_INI_SIZE || $error === UPLOAD_ERR_FORM_SIZE) {
-            $msg = "Das Bild ist zu groß.";
-            $msgClass = "error";
-        } else {
-            $msg = "Upload Fehler Code: " . $error;
-            $msgClass = "error";
-        }
+    if ($wantsJson) {
+        http_response_code($result['status']);
+        header('Content-Type: application/json');
+        echo json_encode(['ok' => $result['ok'], 'message' => $result['message']]);
+        exit;
     }
+
+    if ($result['ok']) {
+        setFlashMessage($result['message'], "success");
+        header("Location: index.php?event=" . urlencode($eventId));
+        exit;
+    }
+    if ($result['status'] === 403) {
+        http_response_code(403);
+        die(e($result['message']));
+    }
+    $msg = $result['message'];
+    $msgClass = "error";
 }
 
 $pageTitle = $eventName;
@@ -149,6 +115,37 @@ require __DIR__ . '/lib/header.php';
         padding: 5px 0;
         font-weight: bold;
         font-size: 0.9rem;
+    }
+
+    #upload-box {
+        max-width: 300px;
+        margin: 15px auto 0;
+    }
+
+    .upload-progress {
+        height: 8px;
+        background: #222;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    #upload-bar {
+        height: 100%;
+        width: 0;
+        background: var(--success);
+        transition: width 0.2s;
+    }
+
+    #upload-errors {
+        text-align: left;
+        color: #ff8888;
+        font-size: 0.85rem;
+        padding-left: 20px;
+    }
+
+    .uploading label.btn {
+        pointer-events: none;
+        opacity: 0.5;
     }
 
     #emoji-bar {
@@ -247,9 +244,17 @@ require __DIR__ . '/lib/header.php';
             <label for="inp-gal" class="btn btn-secondary"
                 style="margin-top:15px; display:block; margin-left:auto; margin-right:auto; max-width:300px;">Aus
                 Galerie wählen 🖼️</label>
-            <input id="inp-gal" type="file" name="image" accept="image/*" class="hidden"
-                onchange="submitForm('form-gal', this)">
+            <input id="inp-gal" type="file" name="image" accept="image/*" multiple class="hidden"
+                onchange="uploadPhotos(this)">
+            <p style="color:#666; font-size:0.85rem; margin-top:8px;">Du kannst auch mehrere Fotos auf einmal auswählen.</p>
         </form>
+
+        <div id="upload-box" class="hidden" aria-live="polite">
+            <div id="upload-status" class="msg"></div>
+            <div class="upload-progress"><div id="upload-bar"></div></div>
+            <ul id="upload-errors"></ul>
+            <button type="button" id="upload-retry" class="btn btn-secondary btn-small hidden" onclick="retryFailed()">🔁 Fehlgeschlagene erneut hochladen</button>
+        </div>
 
         <?php if ($showBar): ?>
             <div style="margin-top: 40px;">
@@ -354,6 +359,127 @@ require __DIR__ . '/lib/header.php';
 
         form.submit();
     }
+
+    // Multi-photo upload: one request per photo, sequentially, with progress.
+    const MAX_PHOTOS_PER_SELECTION = 30;
+    const UPLOAD_URL = 'index.php?event=' + encodeURIComponent(<?php echo json_encode($eventId); ?>);
+    let failedFiles = [];
+    let uploading = false;
+
+    function uploadOne(file, onProgress) {
+        return new Promise((resolve) => {
+            const data = new FormData();
+            data.append('image', file);
+            data.append('uploader', nameInput.value);
+            data.append('device_uuid', deviceId);
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', UPLOAD_URL);
+            xhr.setRequestHeader('Accept', 'application/json');
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) onProgress(e.loaded / e.total);
+            };
+            xhr.onload = () => {
+                let body = null;
+                try {
+                    body = JSON.parse(xhr.responseText);
+                } catch (e) {}
+                const fallback = xhr.status === 413 ? 'Das Bild ist zu groß.' : 'Upload fehlgeschlagen.';
+                resolve({
+                    ok: xhr.status === 200 && !!body && body.ok === true,
+                    status: xhr.status,
+                    message: (body && body.message) || fallback
+                });
+            };
+            xhr.onerror = () => resolve({ ok: false, status: 0, message: 'Keine Verbindung – bitte erneut versuchen.' });
+            xhr.send(data);
+        });
+    }
+
+    function uploadPhotos(input) {
+        let files = Array.from(input.files);
+        input.value = '';
+        if (files.length === 0 || uploading) return;
+
+        const skipped = Math.max(0, files.length - MAX_PHOTOS_PER_SELECTION);
+        runUploads(files.slice(0, MAX_PHOTOS_PER_SELECTION), skipped);
+    }
+
+    function retryFailed() {
+        runUploads(failedFiles.slice(), 0);
+    }
+
+    async function runUploads(files, skipped) {
+        const box = document.getElementById('upload-box');
+        const status = document.getElementById('upload-status');
+        const bar = document.getElementById('upload-bar');
+        const errors = document.getElementById('upload-errors');
+        const retry = document.getElementById('upload-retry');
+
+        document.querySelectorAll('.container > .msg').forEach((el) => el.remove());
+        box.classList.remove('hidden');
+        retry.classList.add('hidden');
+        errors.replaceChildren();
+        status.className = 'msg';
+        bar.style.width = '0';
+        failedFiles = [];
+        uploading = true;
+        document.body.classList.add('uploading');
+
+        let done = 0;
+        let ok = 0;
+        let blocked = false;
+        for (const file of files) {
+            status.textContent = `⏳ Foto ${done + 1} von ${files.length} wird hochgeladen…`;
+            const result = await uploadOne(file, (p) => {
+                bar.style.width = ((done + p) / files.length * 100) + '%';
+            });
+            done++;
+            bar.style.width = (done / files.length * 100) + '%';
+
+            if (result.ok) {
+                ok++;
+                continue;
+            }
+            if (result.status === 403) {
+                // device is blocked: no point in trying the rest
+                blocked = true;
+                status.textContent = result.message;
+                break;
+            }
+            failedFiles.push(file);
+            const li = document.createElement('li');
+            li.textContent = `${file.name}: ${result.message}`;
+            errors.appendChild(li);
+        }
+
+        uploading = false;
+        document.body.classList.remove('uploading');
+        if (blocked) {
+            status.className = 'msg error';
+            return;
+        }
+
+        let text;
+        if (failedFiles.length === 0) {
+            text = ok === 1 ? 'Bild ist auf der Leinwand! 🥳' : `${ok} Bilder sind auf der Leinwand! 🥳`;
+        } else {
+            text = `${ok} von ${files.length} Bildern hochgeladen, ${failedFiles.length} fehlgeschlagen.`;
+            retry.classList.remove('hidden');
+        }
+        if (skipped > 0) {
+            text += ` ${skipped} weitere wurden nicht hochgeladen (max. ${MAX_PHOTOS_PER_SELECTION} pro Auswahl).`;
+        }
+        status.textContent = text;
+        status.className = failedFiles.length === 0 && skipped === 0 ? 'msg success' : 'msg error';
+    }
+
+    window.addEventListener('beforeunload', (e) => {
+        if (uploading) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
 
     function toggleView() {
         const main = document.getElementById('view-main');
