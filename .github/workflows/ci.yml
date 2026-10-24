@@ -129,6 +129,8 @@ jobs:
           docker run --rm --entrypoint php picdrop:ci -r '
             foreach (["gd","exif","mysqli","zip","Zend OPcache"] as $e) { if (!extension_loaded($e)) { fwrite(STDERR, "missing $e\n"); exit(1); } }
             if (!function_exists("imagewebp")) { fwrite(STDERR, "GD without WebP\n"); exit(1); }
+            if (version_compare(PHP_VERSION, "8.5.12", "<")) { fwrite(STDERR, "PHP " . PHP_VERSION . " is affected by CVE-2026-109618/CVE-2026-109619\n"); exit(1); }
+            if (ini_get("session.upload_progress.enabled")) { fwrite(STDERR, "session.upload_progress is enabled\n"); exit(1); }
             echo "ok\n";'
           docker run --rm --entrypoint test picdrop:ci -f /var/www/vendor/autoload.php
 

@@ -15,7 +15,8 @@ RUN composer install \
     --ignore-platform-reqs
 
 # --- Runtime -----------------------------------------------------------------
-FROM php:8.5-apache
+# Pinned to the patch release so Dependabot proposes PHP security updates.
+FROM php:8.5.12-apache
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
