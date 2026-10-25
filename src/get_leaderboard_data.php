@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/lib/auth.php';
+require_once __DIR__ . '/lib/drinks.php';
 
 header('Content-Type: application/json');
 
@@ -20,99 +21,24 @@ checkEventAccess($conn, $eventId);
 $evtQuery = $conn->prepare("SELECT setting_merge_by_device FROM events WHERE uuid = ?");
 $evtQuery->bind_param("s", $eventId);
 $evtQuery->execute();
-$mergeByDevice = $evtQuery->get_result()->fetch_assoc()['setting_merge_by_device'] ?? 1;
+$mergeByDevice = (bool) ($evtQuery->get_result()->fetch_assoc()['setting_merge_by_device'] ?? 1);
 
-$users = [];
-$details = [];
+$board = drinkBoard($conn, $eventId, $mergeByDevice);
 
-if ($mergeByDevice == 1) {
-    $sqlUsers = "
-        SELECT 
-            COALESCE(u.device_uuid, u.uploader_name) as unique_id,
-            SUBSTRING_INDEX(GROUP_CONCAT(u.uploader_name ORDER BY u.timestamp DESC SEPARATOR '|||'), '|||', 1) as display_name,
-            SUM(d.score_factor) as count
-        FROM uploads u
-        JOIN drinks d ON u.drink_id = d.id
-        WHERE u.event_id = ? AND u.drink_id IS NOT NULL AND u.uploader_name != ''
-        GROUP BY unique_id
-        ORDER BY count DESC LIMIT 30
-    ";
-
-    $sqlDetails = "
-        SELECT 
-            SUBSTRING_INDEX(GROUP_CONCAT(u.uploader_name ORDER BY u.timestamp DESC SEPARATOR '|||'), '|||', 1) as current_name,
-            COALESCE(u.device_uuid, u.uploader_name) as unique_id,
-            d.name, d.image_path, COUNT(*) as qty
-        FROM uploads u
-        JOIN drinks d ON u.drink_id = d.id
-        WHERE u.event_id = ? AND u.uploader_name != ''
-        GROUP BY unique_id, d.name
-        ORDER BY unique_id, qty DESC
-    ";
-
-    $stmt = $conn->prepare($sqlUsers);
-    $stmt->bind_param("s", $eventId);
-    $stmt->execute();
-    $resUsers = $stmt->get_result();
-    while ($row = $resUsers->fetch_assoc()) {
-        $users[] = [
-            'uploader_name' => $row['display_name'],
-            'count' => (float)$row['count']
-        ];
-    }
-
-    $stmtD = $conn->prepare($sqlDetails);
-    $stmtD->bind_param("s", $eventId);
-    $stmtD->execute();
-    $resDetails = $stmtD->get_result();
-    while ($row = $resDetails->fetch_assoc()) {
-        $details[$row['current_name']][] = [
-            'drink' => $row['name'],
-            'img' => $row['image_path'],
-            'qty' => $row['qty']
-        ];
-    }
-} else {
-    $stmt = $conn->prepare("
-        SELECT u.uploader_name, SUM(d.score_factor) as count 
-        FROM uploads u
-        JOIN drinks d ON u.drink_id = d.id
-        WHERE u.event_id = ? AND u.drink_id IS NOT NULL AND u.uploader_name != '' 
-        GROUP BY u.uploader_name ORDER BY count DESC LIMIT 30
-    ");
-    $stmt->bind_param("s", $eventId);
-    $stmt->execute();
-    $resUsers = $stmt->get_result();
-    while ($row = $resUsers->fetch_assoc()) {
-        $row['count'] = (float)$row['count'];
-        $users[] = $row;
-    }
-
-    $stmtD = $conn->prepare("
-        SELECT u.uploader_name, d.name, d.image_path, COUNT(*) as qty
-        FROM uploads u
-        JOIN drinks d ON u.drink_id = d.id
-        WHERE u.event_id = ? AND u.uploader_name != ''
-        GROUP BY u.uploader_name, d.name
-        ORDER BY u.uploader_name, qty DESC
-    ");
-    $stmtD->bind_param("s", $eventId);
-    $stmtD->execute();
-    $resDetails = $stmtD->get_result();
-    while ($row = $resDetails->fetch_assoc()) {
-        $details[$row['uploader_name']][] = [
-            'drink' => $row['name'],
-            'img' => $row['image_path'],
-            'qty' => $row['qty']
-        ];
-    }
-}
+$users = array_map(static fn ($p) => [
+    'uploader_name' => $p['name'],
+    'count' => $p['points'],
+    'drinks' => $p['drinks'],
+    'bac' => $p['bac'],
+    'team' => $p['team'],
+    'details' => $p['details'],
+], array_slice($board['people'], 0, 30));
 
 $drinks = [];
 $stmtDrinks = $conn->prepare("
-    SELECT d.name, d.image_path, COUNT(*) as count 
-    FROM uploads u JOIN drinks d ON u.drink_id = d.id 
-    WHERE u.event_id = ? 
+    SELECT d.name, d.image_path, COUNT(*) as count
+    FROM checkins c JOIN drinks d ON c.drink_id = d.id
+    WHERE c.event_uuid = ?
     GROUP BY d.id ORDER BY count DESC
 ");
 $stmtDrinks->bind_param("s", $eventId);
@@ -124,6 +50,6 @@ while ($row = $resDrinks->fetch_assoc()) {
 
 echo json_encode([
     'users' => $users,
-    'details' => $details,
+    'teams' => $board['teams'],
     'drinks' => $drinks
 ]);

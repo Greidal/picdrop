@@ -5,7 +5,7 @@ requireLogin();
 $eventId = $_GET['event'] ?? '';
 checkEventAccess($conn, $eventId);
 
-$stmt = $conn->prepare("SELECT name, logo_path, setting_show_badge, setting_show_uploader, setting_show_time, setting_show_event_name, setting_slide_duration FROM events WHERE uuid = ?");
+$stmt = $conn->prepare("SELECT name, logo_path, location, setting_show_badge, setting_show_uploader, setting_show_time, setting_show_event_name, setting_show_location, setting_show_bar, setting_show_bac, setting_slide_duration FROM events WHERE uuid = ?");
 $stmt->bind_param("s", $eventId);
 $stmt->execute();
 $eventData = $stmt->get_result()->fetch_assoc();
@@ -105,6 +105,26 @@ $eventData = $stmt->get_result()->fetch_assoc();
             letter-spacing: 2px;
         }
 
+        .hidden {
+            display: none !important;
+        }
+
+        #meta-bac {
+            display: inline-block;
+            margin-top: 10px;
+            background: rgba(255, 0, 85, 0.85);
+            border-radius: 30px;
+            padding: 4px 16px;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        #location-display {
+            font-size: 1.1rem;
+            color: #ccc;
+            margin-top: 4px;
+        }
+
         #reaction-layer {
             position: absolute;
             top: 0;
@@ -172,11 +192,15 @@ $eventData = $stmt->get_result()->fetch_assoc();
     <div id="meta-box" class="overlay">
         <span id="meta-label">Foto von</span>
         <div id="meta-name">Name</div>
+        <div id="meta-bac" class="hidden"></div>
     </div>
 
     <div id="info-box" class="overlay">
         <div id="time-display"></div>
         <div id="event-display"><?php echo e($eventData['name']); ?></div>
+        <?php if (!empty($eventData['setting_show_location']) && !empty($eventData['location'])): ?>
+            <div id="location-display">📍 <?php echo e($eventData['location']); ?></div>
+        <?php endif; ?>
     </div>
 
     <script>
@@ -187,7 +211,9 @@ $eventData = $stmt->get_result()->fetch_assoc();
             showBadge: <?php echo (int) $eventData['setting_show_badge']; ?>,
             showUploader: <?php echo (int) $eventData['setting_show_uploader']; ?>,
             showTime: <?php echo (int) $eventData['setting_show_time']; ?>,
-            showEventName: <?php echo (int) $eventData['setting_show_event_name']; ?>
+            showEventName: <?php echo (int) $eventData['setting_show_event_name']; ?>,
+            showLocation: <?php echo (int) (!empty($eventData['setting_show_location']) && !empty($eventData['location'])); ?>,
+            showBac: <?php echo (int) (!empty($eventData['setting_show_bar']) && !empty($eventData['setting_show_bac'])); ?>
         };
 
         const els = {
@@ -196,6 +222,7 @@ $eventData = $stmt->get_result()->fetch_assoc();
             metaBox: document.getElementById('meta-box'),
             metaLabel: document.getElementById('meta-label'),
             metaName: document.getElementById('meta-name'),
+            metaBac: document.getElementById('meta-bac'),
             infoBox: document.getElementById('info-box'),
             timeDisplay: document.getElementById('time-display'),
             eventDisplay: document.getElementById('event-display')
@@ -263,6 +290,12 @@ $eventData = $stmt->get_result()->fetch_assoc();
                 els.stage.src = img.src;
 
                 els.stage.onload = () => {
+                    const hasBac = CONFIG.showBac && img.bac > 0;
+                    els.metaBac.classList.toggle('hidden', !hasBac);
+                    if (hasBac) {
+                        els.metaBac.innerText = '🍺 ' + img.bac.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ‰';
+                    }
+
                     if (CONFIG.showUploader) {
                         if (img.is_drink) {
                             els.metaLabel.innerText = "Trinkt gerade:";
@@ -278,6 +311,10 @@ $eventData = $stmt->get_result()->fetch_assoc();
                                 els.metaBox.style.opacity = 0;
                             }
                         }
+                    } else if (hasBac) {
+                        els.metaLabel.innerText = "Pegel beim Foto:";
+                        els.metaName.innerText = '';
+                        els.metaBox.style.opacity = 1;
                     }
 
                     if (CONFIG.showBadge && img.isNew) {
@@ -293,7 +330,7 @@ $eventData = $stmt->get_result()->fetch_assoc();
                         }) + " Uhr";
                         els.timeDisplay.innerText = timeStr;
                         els.infoBox.style.opacity = 1;
-                    } else if (CONFIG.showEventName) {
+                    } else if (CONFIG.showEventName || CONFIG.showLocation) {
                         els.infoBox.style.opacity = 1;
                     }
 

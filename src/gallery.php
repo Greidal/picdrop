@@ -168,40 +168,161 @@ require __DIR__ . '/lib/header.php';
         color: white;
     }
 
-    .btn-delete {
-        position: absolute;
-        top: 5px;
-        right: 5px;
-        background: rgba(255, 0, 0, 0.7);
-        color: white;
-        border: none;
-        width: 30px;
-        height: 30px;
-        border-radius: 50%;
-        cursor: pointer;
+    .gallery-head {
         display: flex;
         align-items: center;
-        justify-content: center;
-        z-index: 10;
-        transition: 0.2s;
+        gap: 10px;
+        flex-wrap: wrap;
     }
 
-    .btn-delete:hover {
-        background: red;
-        transform: scale(1.1);
+    .gallery-head h1 {
+        margin: 0;
+        flex: 1;
+        min-width: 0;
+        font-size: 1.6rem;
+    }
+
+    .gallery-tools {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-top: 15px;
+        color: var(--text-muted);
+        font-size: 0.9rem;
+    }
+
+    .select-mark {
+        position: absolute;
+        top: 6px;
+        left: 6px;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.85);
+        background: rgba(0, 0, 0, 0.35);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 0.8rem;
+        z-index: 2;
+    }
+
+    .selecting .select-mark {
+        display: flex;
+    }
+
+    .selecting .gallery-item:hover {
+        transform: none;
+    }
+
+    .gallery-item.selected {
+        border-color: var(--primary);
+        box-shadow: inset 0 0 0 3px var(--primary);
+    }
+
+    .gallery-item.selected img {
+        transform: scale(0.92);
+        border-radius: 6px;
+    }
+
+    .gallery-item img {
+        transition: transform 0.15s;
+    }
+
+    .gallery-item.selected .select-mark {
+        background: var(--primary);
+        border-color: var(--primary);
+    }
+
+    .gallery-item.selected .select-mark::after {
+        content: "\2713";
+        font-weight: bold;
+    }
+
+    .gallery-item.removing {
+        transform: scale(0);
+        transition: transform 0.3s;
+    }
+
+    #select-bar {
+        position: fixed;
+        left: 50%;
+        bottom: 16px;
+        transform: translateX(-50%);
+        width: min(560px, calc(100% - 24px));
+        box-sizing: border-box;
+        background: rgba(26, 26, 26, 0.97);
+        border: 1px solid #444;
+        border-radius: 16px;
+        padding: 8px 8px 8px 16px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        z-index: 900;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(10px);
+    }
+
+    #select-count {
+        flex: 1;
+        font-weight: bold;
+        white-space: nowrap;
+    }
+
+    #select-bar .icon-link:disabled {
+        opacity: 0.35;
+        pointer-events: none;
+    }
+
+    #select-bar .icon-link.danger:hover {
+        color: #ff4444;
+    }
+
+    body.selecting-active .container {
+        padding-bottom: 90px;
+    }
+
+    @media (max-width: 600px) {
+        .gallery-grid {
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+        }
+
+        .gallery-item {
+            border-radius: 4px;
+        }
+
+        .lb-btn {
+            padding: 8px 12px;
+            font-size: 1.5rem;
+        }
+
+        .lb-prev {
+            left: 6px;
+        }
+
+        .lb-next {
+            right: 6px;
+        }
     }
 </style>
 
 <div class="container">
-    <div class="flex-between">
+    <div class="gallery-head">
+        <a href="admin.php" class="icon-btn" title="Zurück zum Dashboard" aria-label="Zurück zum Dashboard"><i class="fa fa-arrow-left"></i></a>
         <h1>Galerie: <?php echo e($eventName); ?></h1>
-        <a href="admin.php" class="btn btn-secondary btn-small">🔙 Dashboard</a>
     </div>
 
     <?php if (empty($images)): ?>
         <p style="text-align:center; margin-top:50px; color:#666;">Noch keine Fotos vorhanden.</p>
     <?php else: ?>
-        <div class="gallery-grid">
+        <div class="gallery-tools">
+            <span><span id="photo-count"><?php echo count($images); ?></span> Fotos</span>
+            <button type="button" id="select-toggle" class="btn btn-secondary btn-small" onclick="toggleSelectMode()"><i class="fa fa-check-square"></i> Auswählen</button>
+        </div>
+        <div class="gallery-grid" id="gallery-grid">
             <?php
             foreach ($images as $index => $img):
                 $fullPath = "uploads/$uuid/" . rawurlencode($img['filename']);
@@ -211,6 +332,7 @@ require __DIR__ . '/lib/header.php';
                 $date = date("d.m.Y H:i", strtotime($img['timestamp']));
 
                 $jsImages[] = [
+                    'file' => $img['filename'],
                     'src' => imageVariantUrl($uuid, $img['filename'], 'display'),
                     'original' => $fullPath,
                     'user' => $user,
@@ -218,11 +340,8 @@ require __DIR__ . '/lib/header.php';
                     'date' => $date
                 ];
             ?>
-                <div class="gallery-item" id="img-card-<?php echo $index; ?>" onclick="openLightbox(<?php echo $index; ?>)">
-
-                    <button class="btn-delete" data-filename="<?php echo e($img['filename']); ?>" onclick="deleteImage(event, this.dataset.filename, <?php echo $index; ?>)">
-                        <i class="fa fa-trash"></i>
-                    </button>
+                <div class="gallery-item" id="img-card-<?php echo $index; ?>" data-index="<?php echo $index; ?>">
+                    <span class="select-mark" aria-hidden="true"></span>
                     <img src="<?php echo e(imageVariantUrl($uuid, $img['filename'], 'thumb')); ?>" loading="lazy" decoding="async" alt="Foto">
                 </div>
             <?php endforeach; ?>
@@ -246,6 +365,18 @@ require __DIR__ . '/lib/header.php';
         <a id="lb-download" href="#" download class="lb-download">⬇️ Original herunterladen</a>
     </div>
 </div>
+
+<div id="select-bar" class="hidden" role="toolbar" aria-label="Auswahl">
+    <span id="select-count">0 ausgewählt</span>
+    <button type="button" class="icon-link" onclick="selectAll()" aria-label="Alle"><i class="fa fa-check-double"></i><span>Alle</span></button>
+    <button type="button" class="icon-link" id="btn-download" onclick="downloadSelected()" disabled aria-label="Download"><i class="fa fa-download"></i><span>Download</span></button>
+    <button type="button" class="icon-link danger" id="btn-delete" onclick="deleteSelected()" disabled aria-label="Löschen"><i class="fa fa-trash"></i><span>Löschen</span></button>
+    <button type="button" class="icon-link" onclick="toggleSelectMode(false)" aria-label="Fertig"><i class="fa fa-xmark"></i><span>Fertig</span></button>
+</div>
+
+<form id="zip-form" method="post" action="download_zip.php?event=<?php echo e(urlencode($uuid)); ?>" class="hidden">
+    <?php echo csrfField(); ?>
+</form>
 
 <script>
     const images = <?php echo json_encode($jsImages, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
@@ -312,39 +443,136 @@ require __DIR__ . '/lib/header.php';
         lbDown.href = imgData.original;
     }
 
-    async function deleteImage(event, filename, index) {
-        event.stopPropagation();
-        if (!confirm("Bist du sicher, dass du dieses Bild löschen willst?")) return;
+    // --- Selection mode: select photos, then download or delete them together ---
+    const grid = document.getElementById('gallery-grid');
+    const selected = new Set();
+    let selectMode = false;
+
+    function toggleSelectMode(force) {
+        selectMode = typeof force === 'boolean' ? force : !selectMode;
+        if (!selectMode) {
+            selected.clear();
+            document.querySelectorAll('.gallery-item.selected').forEach((el) => el.classList.remove('selected'));
+        }
+        grid?.classList.toggle('selecting', selectMode);
+        document.body.classList.toggle('selecting-active', selectMode);
+        document.getElementById('select-bar').classList.toggle('hidden', !selectMode);
+        updateSelectBar();
+    }
+
+    function toggleItem(index) {
+        const card = document.getElementById('img-card-' + index);
+        if (selected.has(index)) {
+            selected.delete(index);
+        } else {
+            selected.add(index);
+        }
+        card.classList.toggle('selected', selected.has(index));
+        updateSelectBar();
+    }
+
+    function selectAll() {
+        const all = images.map((img, i) => i).filter((i) => !images[i].deleted);
+        const allSelected = all.every((i) => selected.has(i));
+        all.forEach((i) => {
+            if (allSelected) selected.delete(i);
+            else selected.add(i);
+            document.getElementById('img-card-' + i).classList.toggle('selected', !allSelected);
+        });
+        updateSelectBar();
+    }
+
+    function updateSelectBar() {
+        document.getElementById('select-count').textContent = selected.size + ' ausgewählt';
+        document.getElementById('btn-download').disabled = selected.size === 0;
+        document.getElementById('btn-delete').disabled = selected.size === 0;
+    }
+
+    grid?.addEventListener('click', (e) => {
+        const card = e.target.closest('.gallery-item');
+        if (!card) return;
+        if (suppressClick) {
+            suppressClick = false;
+            return;
+        }
+        const index = Number(card.dataset.index);
+        if (selectMode) toggleItem(index);
+        else openLightbox(index);
+    });
+
+    // Long press starts the selection mode (phones have no hover/right click).
+    let pressTimer = null;
+    let suppressClick = false;
+    grid?.addEventListener('pointerdown', (e) => {
+        const card = e.target.closest('.gallery-item');
+        if (!card || selectMode) return;
+        pressTimer = setTimeout(() => {
+            suppressClick = true;
+            toggleSelectMode(true);
+            toggleItem(Number(card.dataset.index));
+            if (navigator.vibrate) navigator.vibrate(20);
+        }, 500);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel', 'pointermove'].forEach((type) =>
+        grid?.addEventListener(type, (e) => {
+            if (type === 'pointermove' && Math.abs(e.movementX) + Math.abs(e.movementY) < 4) return;
+            clearTimeout(pressTimer);
+        }));
+    grid?.addEventListener('contextmenu', (e) => {
+        if (e.target.closest('.gallery-item')) e.preventDefault();
+    });
+
+    function downloadSelected() {
+        const files = [...selected].map((i) => images[i]);
+        if (files.length === 1) {
+            const a = document.createElement('a');
+            a.href = files[0].original;
+            a.download = files[0].file;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            return;
+        }
+        const form = document.getElementById('zip-form');
+        form.querySelectorAll('input[name="files[]"]').forEach((el) => el.remove());
+        files.forEach((img) => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'files[]';
+            input.value = img.file;
+            form.appendChild(input);
+        });
+        form.submit();
+    }
+
+    async function deleteSelected() {
+        const indexes = [...selected];
+        const label = indexes.length === 1 ? 'dieses Foto' : `diese ${indexes.length} Fotos`;
+        if (!confirm(`Willst du ${label} wirklich löschen? Das kann nicht rückgängig gemacht werden.`)) return;
 
         const formData = new FormData();
         formData.append('event_uuid', <?php echo json_encode($uuid); ?>);
         formData.append('csrf_token', <?php echo json_encode(csrfToken()); ?>);
-        formData.append('filename', filename);
+        indexes.forEach((i) => formData.append('filenames[]', images[i].file));
 
         try {
-            const response = await fetch('delete_image.php', {
-                method: 'POST',
-                body: formData
-            });
-
-            if (response.ok) {
-                const card = document.getElementById('img-card-' + index);
-                if (card) {
-                    card.style.transform = 'scale(0)';
-                    setTimeout(() => card.remove(), 300);
-                }
-
-                images[index].deleted = true;
-
-                if (lb.classList.contains('active') && currentIndex === index) {
-                    closeLightbox();
-                }
-            } else {
-                alert("Fehler beim Löschen.");
-            }
+            const response = await fetch('delete_image.php', { method: 'POST', body: formData });
+            if (!response.ok) throw new Error(response.status);
         } catch (e) {
-            console.error(e);
+            alert("Fehler beim Löschen.");
+            return;
         }
+
+        indexes.forEach((i) => {
+            images[i].deleted = true;
+            const card = document.getElementById('img-card-' + i);
+            card.classList.add('removing');
+            setTimeout(() => card.remove(), 300);
+        });
+        const left = images.filter((img) => !img.deleted).length;
+        document.getElementById('photo-count').textContent = left;
+        toggleSelectMode(false);
+        if (left === 0) setTimeout(() => location.reload(), 350);
     }
 
     document.addEventListener('keydown', function(e) {

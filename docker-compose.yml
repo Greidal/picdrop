@@ -42,6 +42,7 @@ services:
       APP_URL: ${APP_URL:-https://picdrop.klimarschanlage.de}
       PAGE_TITLE: ${PAGE_TITLE:-Kamerarsch}
       REGISTRATION_CODE: ${REGISTRATION_CODE:-}
+      TZ: ${TZ:-Europe/Berlin}
       # Bootstrap Admin User (all required for admin creation)
       ADMIN_USERNAME: ${ADMIN_USERNAME}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD}

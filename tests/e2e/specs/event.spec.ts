@@ -30,6 +30,7 @@ test.describe('event management', () => {
     const uuid = await createEvent(page, `Rename ${unique()}`);
     const newName = `Umbenannt ${unique()}`;
     await page.goto(`/manage_event.php?event=${uuid}`);
+    await page.getByRole('button', { name: 'Namen bearbeiten' }).click();
     await page.locator('#eventName').fill(newName);
     await page.getByRole('button', { name: 'Umbenennen' }).click();
     await expect(page.locator('.msg.success')).toHaveText('Event erfolgreich umbenannt!');
@@ -87,6 +88,76 @@ test.describe('event management', () => {
       const res = await other.goto(`/${path}?event=${uuid}`);
       expect(res?.status(), path).toBe(403);
     }
+    await context.close();
+  });
+});
+
+test.describe('event settings', () => {
+  test.beforeEach(async ({ page }) => {
+    await login(page, admin.email, admin.password);
+  });
+
+  test('QR code can be downloaded as PNG and SVG', async ({ page }) => {
+    const uuid = await createEvent(page, `QR ${unique()}`);
+    await page.goto(`/manage_event.php?event=${uuid}`);
+
+    for (const [format, magic] of [['PNG', '\x89PNG'], ['SVG', '<?xml']]) {
+      const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('link', { name: format }).click()]);
+      expect(download.suggestedFilename()).toMatch(new RegExp(`^QR_QR_.+\\.${format.toLowerCase()}$`));
+      const body = (await import('node:fs')).readFileSync((await download.path())!, 'latin1');
+      expect(body.startsWith(magic)).toBe(true);
+    }
+  });
+
+  test('drink menu: add, edit and delete drinks with amount and alcohol content', async ({ page }) => {
+    const uuid = await createEvent(page, `Bar ${unique()}`);
+    await page.goto(`/manage_event.php?event=${uuid}`);
+
+    await page.locator('#drink-template').selectOption('Aperol Spritz');
+    await expect(page.getByLabel('Name des neuen Getränks')).toHaveValue('Aperol Spritz');
+    await page.locator('#add-drink').getByRole('button').click();
+    await expect(page.locator('.msg.success')).toHaveText('Getränk hinzugefügt!');
+
+    const drinkRow = page.locator('form.drink-row').filter({ has: page.locator('input[value="Aperol Spritz"]') });
+    await expect(drinkRow.getByLabel('Standardmenge in ml')).toHaveValue('250');
+    await expect(drinkRow.getByLabel('Alkoholgehalt in Vol-%')).toHaveValue('8');
+    await drinkRow.getByLabel('Alkoholgehalt in Vol-%').fill('11');
+    await drinkRow.getByRole('button', { name: 'Änderungen übernehmen' }).click();
+    await expect(page.locator('.msg.success')).toContainText('gespeichert');
+    await expect(drinkRow.getByLabel('Alkoholgehalt in Vol-%')).toHaveValue('11');
+
+    page.once('dialog', (dialog) => dialog.accept());
+    await drinkRow.getByRole('button', { name: 'Getränk löschen' }).click();
+    await expect(page.locator('.msg.success')).toHaveText('Getränk gelöscht.');
+    await expect(page.locator('form.drink-row:not(.add)')).toHaveCount(0);
+  });
+
+  test('the creator can remove people again', async ({ page, request, browser }) => {
+    const uuid = await createEvent(page, `Team ${unique()}`);
+    const email = `member-${unique()}@picdrop.test`;
+    const context = await browser.newContext();
+    const other = await context.newPage();
+    await other.goto('/register.php');
+    await other.getByPlaceholder('E-Mail Adresse').fill(email);
+    const username = `m${unique()}`.slice(0, 20);
+    await other.getByPlaceholder('Anzeigename').fill(username);
+    await other.getByPlaceholder(/Passwort/).fill('member-password-1');
+    await other.getByPlaceholder('Registrierungs-Code').fill(env.REGISTRATION_CODE);
+    await other.getByRole('button', { name: 'Registrieren' }).click();
+    await other.goto(extractLink(await waitForMail(request, email, /bestätige/), 'verify.php'));
+    await login(other, email, 'member-password-1');
+
+    await page.goto(`/manage_event.php?event=${uuid}`);
+    await page.getByPlaceholder('gast@beispiel.de').fill(email);
+    await page.getByRole('button', { name: 'Einladen' }).click();
+    expect((await other.goto(`/manage_event.php?event=${uuid}`))?.status()).toBe(200);
+    // members can't remove anyone
+    await expect(other.getByRole('button', { name: /entfernen$/ })).toHaveCount(0);
+
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.getByRole('button', { name: `${username} entfernen` }).click();
+    await expect(page.locator('.msg.success')).toHaveText('Zugriff entfernt.');
+    expect((await other.goto(`/manage_event.php?event=${uuid}`))?.status()).toBe(403);
     await context.close();
   });
 });

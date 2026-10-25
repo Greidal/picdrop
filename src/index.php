@@ -1,27 +1,35 @@
 <?php
 require_once __DIR__ . '/lib/auth.php';
 require_once __DIR__ . '/lib/uploads.php';
+require_once __DIR__ . '/lib/drinks.php';
 
 $eventId = $_GET['event'] ?? '';
+// The bare domain is for organizers: send them to the dashboard (login if needed).
+// Guests always arrive with ?event=… from the QR code.
+if ($eventId === '') {
+    header("Location: admin.php");
+    exit;
+}
 $eventName = getEventOrDie($conn, $eventId);
 
-// load event settings: show the "bar" (drink) button, strip location data from photos
-$stmt2 = $conn->prepare("SELECT setting_show_bar, setting_strip_location FROM events WHERE uuid = ?");
+// load event settings: drink mode, strip location data from photos, date photos by capture time
+$stmt2 = $conn->prepare("SELECT setting_show_bar, setting_strip_location, setting_use_capture_time FROM events WHERE uuid = ?");
 $stmt2->bind_param("s", $eventId);
 $stmt2->execute();
 $row = $stmt2->get_result()->fetch_assoc();
 $showBar = isset($row['setting_show_bar']) ? boolval($row['setting_show_bar']) : true;
 $stripLocation = !empty($row['setting_strip_location']);
+$useCaptureTime = !empty($row['setting_use_capture_time']);
 
 $prefilledName = "";
 if (isLoggedIn()) {
     $prefilledName = $_SESSION['username'] ?? '';
 }
 
-$stmt = $conn->prepare("SELECT * FROM drinks WHERE event_uuid = ?");
+$stmt = $conn->prepare("SELECT id, name, image_path, volume_ml, abv FROM drinks WHERE event_uuid = ? ORDER BY id");
 $stmt->bind_param("s", $eventId);
 $stmt->execute();
-$drinks = $stmt->get_result();
+$drinks = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
 $flash = getFlashMessage();
 if ($flash) {
@@ -40,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Request exceeded post_max_size: PHP dropped the whole body.
         $result = uploadResult(false, 413, "Das Bild ist zu groß.");
     } else {
-        $result = handleGuestUpload($conn, $eventId, $_FILES['image'] ?? [], $_POST, $stripLocation);
+        $result = handleGuestUpload($conn, $eventId, $_FILES['image'] ?? [], $_POST, $stripLocation, $useCaptureTime);
     }
 
     if ($wantsJson) {
@@ -71,8 +79,8 @@ require __DIR__ . '/lib/header.php';
     .drink-grid {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
-        gap: 15px;
-        max-width: 400px;
+        gap: 12px;
+        max-width: 420px;
         width: 100%;
         margin: 20px auto;
     }
@@ -86,35 +94,204 @@ require __DIR__ . '/lib/header.php';
         overflow: hidden;
         cursor: pointer;
         transition: 0.2s;
+        padding: 0;
+        color: inherit;
+        font: inherit;
+        width: 100%;
     }
 
-    .drink-card.selected {
-        border-color: #00ff88;
-        box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
-        transform: scale(1.02);
+    .drink-card:active {
+        transform: scale(0.97);
     }
 
     .drink-img {
         width: 100%;
         height: 100%;
         object-fit: cover;
-        filter: brightness(0.6);
-        transition: 0.3s;
+        filter: brightness(0.75);
     }
 
-    .drink-card.selected .drink-img {
-        filter: brightness(1);
+    .drink-emoji {
+        font-size: 3rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 80%;
     }
 
     .drink-name {
         position: absolute;
         bottom: 0;
         width: 100%;
-        background: rgba(0, 0, 0, 0.7);
+        background: rgba(0, 0, 0, 0.72);
         text-align: center;
         padding: 5px 0;
         font-weight: bold;
         font-size: 0.9rem;
+        line-height: 1.2;
+    }
+
+    .drink-name small {
+        display: block;
+        font-weight: normal;
+        font-size: 0.72rem;
+        color: #aaa;
+    }
+
+    /* Check-in sheet */
+    .sheet-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 1500;
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        backdrop-filter: blur(4px);
+    }
+
+    .sheet {
+        background: #1a1a1a;
+        width: 100%;
+        max-width: 520px;
+        max-height: 92vh;
+        overflow-y: auto;
+        border-radius: 20px 20px 0 0;
+        border: 1px solid #333;
+        border-bottom: none;
+        padding: 10px 20px calc(20px + env(safe-area-inset-bottom));
+        box-sizing: border-box;
+        text-align: left;
+        animation: sheetUp 0.22s ease-out;
+    }
+
+    @keyframes sheetUp {
+        from {
+            transform: translateY(40px);
+            opacity: 0;
+        }
+    }
+
+    .sheet-grip {
+        width: 40px;
+        height: 4px;
+        background: #444;
+        border-radius: 2px;
+        margin: 0 auto 12px;
+    }
+
+    .sheet h2 {
+        margin: 0 0 4px;
+        font-weight: 600;
+    }
+
+    .sheet-label {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin: 16px 0 6px;
+        font-size: 0.9rem;
+        color: #aaa;
+    }
+
+    .sheet-label output {
+        color: white;
+        font-weight: bold;
+        font-size: 1.05rem;
+    }
+
+    .containers {
+        display: flex;
+        gap: 6px;
+        overflow-x: auto;
+        padding-bottom: 4px;
+        scrollbar-width: none;
+    }
+
+    .containers button {
+        flex-shrink: 0;
+        background: #222;
+        border: 1px solid #3a3a3a;
+        color: #ddd;
+        border-radius: 12px;
+        padding: 6px 10px;
+        font-size: 0.8rem;
+        cursor: pointer;
+        line-height: 1.25;
+    }
+
+    .containers button b {
+        display: block;
+        font-size: 0.95rem;
+    }
+
+    .containers button.active {
+        border-color: var(--primary);
+        background: rgba(255, 0, 85, 0.15);
+    }
+
+    .people-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .people-chips button {
+        background: #222;
+        border: 1px solid #3a3a3a;
+        color: #ddd;
+        border-radius: 20px;
+        padding: 7px 12px;
+        font-size: 0.88rem;
+        cursor: pointer;
+    }
+
+    .people-chips button.selected {
+        border-color: var(--success);
+        background: rgba(0, 255, 136, 0.12);
+        color: white;
+    }
+
+    .people-chips button.selected::before {
+        content: "✓ ";
+        color: var(--success);
+    }
+
+    .sheet-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 22px;
+    }
+
+    .sheet-actions .btn {
+        max-width: none;
+        width: 100%;
+        font-size: 1rem;
+        padding: 14px 10px;
+        box-sizing: border-box;
+    }
+
+    .grams-hint {
+        font-size: 0.8rem;
+        color: #888;
+        margin-top: 6px;
+    }
+
+    .drink-links {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        margin: 40px auto 0;
+        /* stay clear of the fixed emoji bar */
+        padding-bottom: 90px;
+    }
+
+    .drink-links .btn {
+        width: 100%;
+        max-width: 300px;
+        box-sizing: border-box;
     }
 
     #upload-box {
@@ -217,6 +394,11 @@ require __DIR__ . '/lib/header.php';
     }
 </style>
 
+<?php
+require_once __DIR__ . '/lib/guest_nav.php';
+renderGuestCommon($eventId);
+?>
+
 <div class="container text-center">
     <?php echo renderMessage($msg, $msgClass); ?>
 
@@ -257,44 +439,77 @@ require __DIR__ . '/lib/header.php';
         </div>
 
         <?php if ($showBar): ?>
-            <div style="margin-top: 40px;">
-                <button onclick="toggleView()" class="btn btn-small"
-                    style="background:#222; border:1px solid #444; color:#888;">🍸 Getränk einchecken</button>
+            <div class="drink-links">
+                <a href="#drink" class="btn btn-secondary">🍺 Getränk einchecken</a>
+                <a href="pegel.php?event=<?php echo e(urlencode($eventId)); ?>" class="btn btn-secondary">📈 Mein Pegel</a>
             </div>
         <?php endif; ?>
+
     </div>
 
-    <div id="view-bar" class="hidden">
-        <h1>Was trinkst du?</h1>
-        <p style="color:#888; font-size:0.9rem;">(Name für Leaderboard notwendig)</p>
+    <?php if ($showBar): ?>
+        <div id="view-bar" class="hidden">
+            <h1>Was trinkst du?</h1>
+            <p style="color:#888; font-size:0.9rem;">Antippen, Menge wählen, einchecken – auch für deine Runde.</p>
 
-        <?php if ($drinks->num_rows > 0): ?>
-            <div class="drink-grid">
-                <?php while ($d = $drinks->fetch_assoc()): ?>
-                    <div class="drink-card" onclick="selectDrink(<?php echo (int) $d['id']; ?>, this)">
-                        <img src="<?php echo e($d['image_path']); ?>" class="drink-img">
-                        <div class="drink-name"><?php echo e($d['name']); ?></div>
-                    </div>
-                <?php endwhile; ?>
+            <?php if ($drinks): ?>
+                <div class="drink-grid">
+                    <?php foreach ($drinks as $d): ?>
+                        <button type="button" class="drink-card" aria-label="<?php echo e($d['name']); ?> einchecken" data-id="<?php echo (int) $d['id']; ?>" data-name="<?php echo e($d['name']); ?>"
+                            data-ml="<?php echo (int) $d['volume_ml']; ?>" data-abv="<?php echo e((float) $d['abv']); ?>" onclick="openCheckin(this.dataset)">
+                            <?php if ($d['image_path']): ?>
+                                <img src="<?php echo e($d['image_path']); ?>" class="drink-img" alt="">
+                            <?php else: ?>
+                                <div class="drink-emoji">🍹</div>
+                            <?php endif; ?>
+                            <div class="drink-name"><?php echo e($d['name']); ?>
+                                <small><?php echo (int) $d['volume_ml']; ?> ml · <?php echo e(str_replace('.', ',', (string) (float) $d['abv'])); ?> %</small>
+                            </div>
+                        </button>
+                    <?php endforeach; ?>
+                </div>
+                <a href="pegel.php?event=<?php echo e(urlencode($eventId)); ?>" class="btn btn-secondary btn-small" style="margin-top:6px;">📈 Mein Pegel</a>
+            <?php else: ?>
+                <p>Für dieses Event wurde noch keine Getränkekarte angelegt.</p>
+            <?php endif; ?>
+            <div style="margin-top: 24px;">
+                <a href="#foto" class="btn btn-secondary btn-small">🔙 Zurück</a>
             </div>
-        <?php else: ?>
-            <p>Für dieses Event wurde noch keine Bar konfiguriert.</p>
-        <?php endif; ?>
-
-        <form method="post" enctype="multipart/form-data" id="form-bar" class="hidden">
-            <input type="hidden" name="uploader" class="hidden-uploader">
-            <input type="hidden" name="drink_id" id="selected-drink-id">
-            <input type="hidden" name="device_uuid" class="hidden-device-id">
-
-            <label for="inp-bar-cam" class="btn btn-primary" style="margin-top:20px;">📸 Beweisfoto machen</label>
-            <input id="inp-bar-cam" type="file" name="image" accept="image/*" capture="environment" class="hidden"
-                onchange="submitForm('form-bar', this)">
-        </form>
-
-        <div style="margin-top: 30px;">
-            <button onclick="toggleView()" class="btn btn-secondary btn-small">🔙 Zurück</button>
         </div>
-    </div>
+
+        <div id="checkin-sheet" class="sheet-backdrop hidden" onclick="if (event.target === this) closeCheckin()">
+            <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="ci-title">
+                <div class="sheet-grip"></div>
+                <h2 id="ci-title">Getränk</h2>
+                <div class="grams-hint" id="ci-grams"></div>
+
+                <div class="sheet-label">Gefäß</div>
+                <div class="containers" id="ci-containers">
+                    <?php foreach (DRINK_CONTAINERS as [$label, $ml]): ?>
+                        <button type="button" data-ml="<?php echo (int) $ml; ?>"><b><?php echo e($ml >= 1000 ? str_replace('.', ',', (string) ($ml / 1000)) . ' l' : $ml . ' ml'); ?></b><?php echo e($label); ?></button>
+                    <?php endforeach; ?>
+                </div>
+
+                <label class="sheet-label" for="ci-ml">Menge <output id="ci-ml-out"></output></label>
+                <input type="range" id="ci-ml" min="10" max="1500" step="10">
+
+                <label class="sheet-label" for="ci-abv">Alkoholgehalt <output id="ci-abv-out"></output></label>
+                <input type="range" id="ci-abv" min="0" max="80" step="0.5">
+
+                <div class="sheet-label">Für wen? <small>mehrere = Runde 🎁</small></div>
+                <div class="people-chips" id="ci-people">
+                    <button type="button" class="selected" data-self="1">Ich</button>
+                </div>
+
+                <div class="sheet-actions">
+                    <button type="button" class="btn btn-secondary" id="ci-photo-btn" onclick="document.getElementById('ci-photo').click()">📸 Mit Foto</button>
+                    <button type="button" class="btn btn-primary" id="ci-submit" onclick="submitCheckin()">✅ Einchecken</button>
+                </div>
+                <input type="file" id="ci-photo" accept="image/*" capture="environment" class="hidden" onchange="submitCheckin(this.files[0])">
+                <button type="button" class="btn btn-secondary btn-small" style="margin:16px auto 0; display:block;" onclick="closeCheckin()">Abbrechen</button>
+            </div>
+        </div>
+    <?php endif; ?>
 </div>
 
 <div id="emoji-bar">
@@ -308,16 +523,7 @@ require __DIR__ . '/lib/header.php';
 </div>
 
 <script>
-    function getDeviceId() {
-        let uuid = localStorage.getItem('fotobox_device_uuid');
-        if (!uuid) {
-            uuid = 'dev_' + Date.now().toString(36) + Math.random().toString(36).substr(2);
-            localStorage.setItem('fotobox_device_uuid', uuid);
-        }
-        return uuid;
-    }
-
-    const deviceId = getDeviceId();
+    const deviceId = Guest.deviceId();
     document.querySelectorAll('.hidden-device-id').forEach(el => el.value = deviceId);
 
     const nameInput = document.getElementById('uploader-name');
@@ -335,20 +541,6 @@ require __DIR__ . '/lib/header.php';
 
     function submitForm(formId, inputEl) {
         if (inputEl.files.length === 0) return;
-
-        if (formId === 'form-bar') {
-            if (nameInput.value.trim() === "") {
-                alert("Wer trinkt das? Bitte gib oben deinen Namen ein!");
-                inputEl.value = "";
-                nameInput.focus();
-                nameInput.style.borderColor = "#ff0055";
-                window.scrollTo({
-                    top: 0,
-                    behavior: 'smooth'
-                });
-                return;
-            }
-        }
 
         const form = document.getElementById(formId);
         form.querySelector('.hidden-uploader').value = nameInput.value;
@@ -481,31 +673,133 @@ require __DIR__ . '/lib/header.php';
         }
     });
 
-    function toggleView() {
-        const main = document.getElementById('view-main');
+    // --- Views: photos / drink check-in (switched via #foto / #drink) ---
+    function showView() {
         const bar = document.getElementById('view-bar');
+        if (!bar) return;
+        const drink = location.hash === '#drink';
+        document.getElementById('view-main').classList.toggle('hidden', drink);
+        bar.classList.toggle('hidden', !drink);
+        document.getElementById('emoji-bar').classList.toggle('hidden', drink);
+        nameInput.placeholder = drink ? "Dein Name (für Ranking & Pegel nötig)" : "Dein Name (optional)";
+    }
+    window.addEventListener('hashchange', showView);
+    showView();
 
-        main.classList.toggle('hidden');
-        bar.classList.toggle('hidden');
+    // --- Check-in sheet ---
+    const ci = {
+        drink: null,
+        ml: document.getElementById('ci-ml'),
+        abv: document.getElementById('ci-abv'),
+        guestsLoaded: false,
+        busy: false
+    };
 
-        if (!bar.classList.contains('hidden')) {
-            nameInput.placeholder = "Dein Name (Name für Leaderboard notwendig)";
-            if (nameInput.value.trim() === "") nameInput.style.borderColor = "#ff0055";
-        } else {
-            nameInput.placeholder = "Dein Name (optional)";
-            nameInput.style.borderColor = "#333";
-        }
+    function formatMl(ml) {
+        return ml >= 1000 ? (ml / 1000).toLocaleString('de-DE') + ' l' : ml + ' ml';
     }
 
-    function selectDrink(id, el) {
-        document.querySelectorAll('.drink-card').forEach(c => c.classList.remove('selected'));
-        el.classList.add('selected');
-        document.getElementById('selected-drink-id').value = id;
-        document.getElementById('form-bar').classList.remove('hidden');
-        el.scrollIntoView({
-            behavior: "smooth",
-            block: "center"
+    function updateCheckinLabels() {
+        const ml = Number(ci.ml.value);
+        const abv = Number(ci.abv.value);
+        document.getElementById('ci-ml-out').textContent = formatMl(ml);
+        document.getElementById('ci-abv-out').textContent = abv.toLocaleString('de-DE', { minimumFractionDigits: 1 }) + ' %';
+        const grams = ml * abv / 100 * 0.789;
+        document.getElementById('ci-grams').textContent = grams > 0 ? `≈ ${grams.toLocaleString('de-DE', { maximumFractionDigits: 1 })} g reiner Alkohol` : 'alkoholfrei';
+        document.querySelectorAll('#ci-containers button').forEach((b) => b.classList.toggle('active', Number(b.dataset.ml) === ml));
+    }
+
+    function openCheckin(drink) {
+        if (!ensureName()) return;
+        ci.drink = drink;
+        document.getElementById('ci-title').textContent = drink.name;
+        ci.ml.value = drink.ml;
+        ci.abv.value = drink.abv;
+        updateCheckinLabels();
+        document.getElementById('checkin-sheet').classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+        loadGuests();
+    }
+
+    function closeCheckin() {
+        document.getElementById('checkin-sheet').classList.add('hidden');
+        document.body.style.overflow = '';
+    }
+
+    function ensureName() {
+        if (nameInput.value.trim() !== '') return true;
+        Guest.toast('Wer trinkt? Bitte gib oben deinen Namen ein!', true);
+        nameInput.focus();
+        nameInput.style.borderColor = "#ff0055";
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return false;
+    }
+
+    async function loadGuests() {
+        if (ci.guestsLoaded) return;
+        try {
+            const data = await Guest.api('guests');
+            const box = document.getElementById('ci-people');
+            data.guests.forEach((g) => {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.dataset.ref = g.ref;
+                b.textContent = g.name;
+                box.appendChild(b);
+            });
+            ci.guestsLoaded = true;
+        } catch (e) {}
+    }
+
+    if (ci.ml) {
+        ci.ml.addEventListener('input', updateCheckinLabels);
+        ci.abv.addEventListener('input', updateCheckinLabels);
+        document.getElementById('ci-containers').addEventListener('click', (e) => {
+            const b = e.target.closest('button');
+            if (!b) return;
+            ci.ml.value = b.dataset.ml;
+            updateCheckinLabels();
         });
+        document.getElementById('ci-people').addEventListener('click', (e) => {
+            const b = e.target.closest('button');
+            if (b) b.classList.toggle('selected');
+        });
+    }
+
+    async function submitCheckin(photo) {
+        if (ci.busy || !ensureName()) return;
+        const chips = [...document.querySelectorAll('#ci-people button.selected')];
+        const self = chips.some((b) => b.dataset.self);
+        const round = chips.filter((b) => b.dataset.ref).map((b) => b.dataset.ref);
+        if (!self && round.length === 0) {
+            Guest.toast('Für wen ist das Getränk? Wähle mindestens eine Person.', true);
+            return;
+        }
+
+        const data = new FormData();
+        data.append('name', nameInput.value.trim());
+        if (photo) data.append('image', photo);
+        ci.busy = true;
+        const submit = document.getElementById(photo ? 'ci-photo-btn' : 'ci-submit');
+        const label = submit.textContent;
+        submit.textContent = '⏳ …';
+        try {
+            const res = await Guest.api('checkin', {
+                drink_id: ci.drink.id,
+                volume_ml: ci.ml.value,
+                abv: ci.abv.value,
+                self: self ? '1' : '0',
+                round
+            }, data);
+            closeCheckin();
+            Guest.toast(res.message);
+        } catch (e) {
+            Guest.toast(e.message, true);
+        } finally {
+            ci.busy = false;
+            submit.textContent = label;
+            document.getElementById('ci-photo').value = '';
+        }
     }
 
     function sendReaction(emoji) {
