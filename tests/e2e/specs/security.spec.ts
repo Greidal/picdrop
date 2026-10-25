@@ -34,6 +34,11 @@ test.describe('HTTP hardening', () => {
     expect(res.status()).toBe(403);
   });
 
+  test('the bare domain leads to the dashboard (via login)', async ({ page }) => {
+    await page.goto('/');
+    await expect(page).toHaveURL(/login\.php/);
+  });
+
   test('pages behind login redirect to the login page', async ({ page }) => {
     for (const path of ['/admin.php', '/gallery.php?event=00000000-0000-4000-8000-000000000000']) {
       await page.goto(path);

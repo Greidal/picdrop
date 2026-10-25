@@ -103,6 +103,19 @@ function checkEventAccess(mysqli $conn, $uuid): void
     }
 }
 
+/** Creator-only actions (remove team members, archive): the event's creator and global admins. */
+function canManageEventTeam(mysqli $conn, string $uuid): bool
+{
+    if (isAdmin()) {
+        return true;
+    }
+    $stmt = $conn->prepare("SELECT created_by FROM events WHERE uuid = ?");
+    $stmt->bind_param("s", $uuid);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    return $row && (int) $row['created_by'] === getCurrentUserId();
+}
+
 function setFlashMessage(string $text, string $type = 'success'): void
 {
     $_SESSION['flash_msg'] = [

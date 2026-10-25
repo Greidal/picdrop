@@ -6,9 +6,10 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
 
 - **User Registration & Authentication**: Secure user registration, login, e-mail verification and password reset.
 - **Photo Gallery**: Guests upload photos from their phone – also several at once, with progress – and view them in the gallery and live slideshow.
-- **Event Management**: Admins can create and manage events.
-- **Leaderboard**: Track and display top users or event participants.
-- **Admin Panel**: Manage users, events, and gallery content.
+- **Event Management**: Dashboard grouped into own, shared and (for admins) other users' events, with search and an archive for past events. Settings per event: logo, guest link with QR code (PNG/SVG), upload and slideshow options, drink menu, team members.
+- **Gallery**: Select several photos and download them as a ZIP or delete them together.
+- **Drink mode**: Guests check in drinks (amount and alcohol content via slider or glass presets, optionally with a photo, also as a round for others), see an estimated blood alcohol curve with forecast ("Mein Pegel"), stats, badges and a team ranking, and can share their evening as an Instagram story image. The slideshow can show the photographer's estimated BAC at the time of the photo. All BAC values are rough estimates (Widmark formula).
+- **Leaderboard**: Points per guest and per team.
 - **Email Notifications**: Uses PHPMailer for sending emails (e.g., verification, notifications).
 - **Download as ZIP**: Download all images of an event (plus a CSV export) as a ZIP archive.
 - **Configurable via Docker**: Includes Docker and Docker Compose setup for easy deployment.
@@ -75,6 +76,7 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
 | `DB_HOST` / `DB_USER` / `DB_PASS` / `DB_NAME` | Database connection. |
 | `SMTP_*` | Mail server settings (see `example.env`). `SMTP_SECURE` is `tls`, `ssl` or `none`. |
 | `SKIP_MIGRATIONS=1` | Don't run migrations on container start. |
+| `TZ` | Time zone of the events (default `Europe/Berlin`). Used for the capture time of photos and time-based badges. |
 
 ### Database server
 - MariaDB **12.3 LTS** (supported until June 2029). `MARIADB_AUTO_UPGRADE` upgrades the data

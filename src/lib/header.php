@@ -85,6 +85,7 @@
         input[type="email"],
         input[type="password"],
         input[type="number"],
+        input[type="search"],
         input[type="file"],
         select {
             width: 100%;
@@ -251,6 +252,179 @@
             border: 2px solid var(--border);
             vertical-align: middle;
             margin-right: 10px;
+        }
+
+        label {
+            color: #ccc;
+        }
+
+        small,
+        .muted {
+            color: var(--text-muted);
+        }
+
+        /* Small icon actions (dashboard, settings). Plain, without button chrome. */
+        .icon-link {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+            min-width: 44px;
+            padding: 4px 2px;
+            color: #bbb;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font: inherit;
+            border-radius: 8px;
+        }
+
+        .icon-link i {
+            font-size: 1.05rem;
+        }
+
+        .icon-link span {
+            font-size: 0.62rem;
+            color: var(--text-muted);
+            letter-spacing: 0.2px;
+            white-space: nowrap;
+        }
+
+        .icon-link:hover,
+        .icon-link:focus-visible {
+            color: var(--primary);
+            background: #222;
+        }
+
+        .icon-btn {
+            background: none;
+            border: none;
+            color: #999;
+            cursor: pointer;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            font-size: 1rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .icon-btn:hover,
+        .icon-btn:focus-visible {
+            color: var(--primary);
+            background: #222;
+        }
+
+        .icon-btn.danger:hover {
+            color: #ff4444;
+        }
+
+        /* Collapsible sections ("Register") */
+        details.section {
+            margin-bottom: 14px;
+        }
+
+        details.section > summary {
+            list-style: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 4px;
+            font-size: 1.05rem;
+            user-select: none;
+            border-bottom: 1px solid var(--border);
+        }
+
+        details.section > summary::-webkit-details-marker {
+            display: none;
+        }
+
+        details.section > summary::before {
+            content: "\203A";
+            font-size: 1.4rem;
+            line-height: 1;
+            color: var(--text-muted);
+            transition: transform 0.2s;
+            width: 12px;
+        }
+
+        details.section[open] > summary::before {
+            transform: rotate(90deg);
+        }
+
+        .count-pill {
+            background: #2a2a2a;
+            color: #aaa;
+            border-radius: 20px;
+            padding: 1px 9px;
+            font-size: 0.8rem;
+        }
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #222;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 4px 6px 4px 12px;
+            font-size: 0.85rem;
+        }
+
+        .chip.selected {
+            border-color: var(--success);
+            background: rgba(0, 255, 136, 0.12);
+        }
+
+        .row-form {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .row-form input {
+            margin: 0;
+        }
+
+        .btn-inline {
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            width: auto;
+            white-space: nowrap;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--primary);
+        }
+
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 12px;
+            }
+
+            .card {
+                padding: 16px;
+                border-radius: 12px;
+            }
+
+            h1 {
+                font-size: 1.6rem;
+            }
+
+            .modal-content {
+                padding: 20px;
+            }
         }
     </style>
 </head>
