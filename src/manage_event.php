@@ -8,7 +8,7 @@ requireLogin();
 
 $uuid = $_GET['event'] ?? '';
 checkEventAccess($conn, $uuid);
-$canManageTeam = canManageEventTeam($conn, $uuid);
+$canAdminister = canAdministerEvent($conn, $uuid);
 
 $flash = getFlashMessage();
 $msg = $flash ? $flash['text'] : "";
@@ -187,7 +187,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (isset($_POST['remove_user_id']) || isset($_POST['cancel_invite_id'])) {
-        if (!$canManageTeam) {
+        if (!$canAdminister) {
             http_response_code(403);
             die("⛔ Nur wer das Event erstellt hat, kann Personen entfernen.");
         }
@@ -286,6 +286,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (isset($_POST['delete_event_final']) && $_POST['delete_event_final'] === 'yes') {
+        if (!$canAdminister) {
+            http_response_code(403);
+            die("⛔ Nur wer das Event erstellt hat, kann es löschen.");
+        }
         removeDirectory(__DIR__ . "/uploads/$uuid");
 
         $stmt = $conn->prepare("DELETE FROM events WHERE uuid = ?");
@@ -968,7 +972,7 @@ function settingToggle(string $name, bool $checked, string $title, string $hint 
                     <span class="initial"><?php echo e(mb_substr($m['username'], 0, 1)); ?></span>
                     <span class="who"><?php echo e($m['username']); ?> <small><?php echo e($m['email']); ?></small></span>
                     <?php if ($isCreator): ?><span class="role">Ersteller</span><?php endif; ?>
-                    <?php if ($canManageTeam && !$isCreator): ?>
+                    <?php if ($canAdminister && !$isCreator): ?>
                         <form method="post">
                             <?php echo csrfField(); ?>
                             <button class="icon-btn danger" name="remove_user_id" value="<?php echo (int) $m['id']; ?>" title="Zugriff entfernen" aria-label="<?php echo e($m['username']); ?> entfernen"
@@ -981,7 +985,7 @@ function settingToggle(string $name, bool $checked, string $title, string $hint 
                 <li class="pending">
                     <span class="initial"><i class="fa fa-envelope"></i></span>
                     <span class="who"><?php echo e($inv['email']); ?> <small>(Wartet auf Registrierung...)</small></span>
-                    <?php if ($canManageTeam): ?>
+                    <?php if ($canAdminister): ?>
                         <form method="post">
                             <?php echo csrfField(); ?>
                             <button class="icon-btn danger" name="cancel_invite_id" value="<?php echo (int) $inv['id']; ?>" title="Einladung zurückziehen" aria-label="Einladung zurückziehen"><i class="fa fa-xmark"></i></button>
@@ -993,6 +997,7 @@ function settingToggle(string $name, bool $checked, string $title, string $hint 
     </div>
 
     <!-- 8. Danger zone -->
+    <?php if ($canAdminister): ?>
     <div class="card" style="border: 1px solid #ff4444; background: rgba(50, 0, 0, 0.3); margin-top: 40px;">
         <h3 style="color: #ff4444;">Danger Zone</h3>
         <p style="color: #ccc;">
@@ -1023,6 +1028,7 @@ function settingToggle(string $name, bool $checked, string $title, string $hint 
             </button>
         </form>
     </div>
+    <?php endif; ?>
 
 </div>
 

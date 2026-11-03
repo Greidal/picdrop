@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { admin, createEvent, env, extractLink, login, unique, waitForMail } from '../helpers';
+import { admin, createEvent, csrfToken, env, extractLink, login, unique, waitForMail } from '../helpers';
 
 test.describe('event management', () => {
   test.beforeEach(async ({ page }) => {
@@ -203,8 +203,12 @@ test.describe('event settings', () => {
     await page.getByPlaceholder('gast@beispiel.de').fill(email);
     await page.getByRole('button', { name: 'Einladen' }).click();
     expect((await other.goto(`/manage_event.php?event=${uuid}`))?.status()).toBe(200);
-    // members can't remove anyone
+    // members can't remove anyone or delete the event
     await expect(other.getByRole('button', { name: /entfernen$/ })).toHaveCount(0);
+    await expect(other.getByText('Danger Zone')).toHaveCount(0);
+    const token = await csrfToken(other);
+    const del = await other.request.post(`/manage_event.php?event=${uuid}`, { form: { csrf_token: token, delete_event_final: 'yes' } });
+    expect(del.status()).toBe(403);
 
     page.once('dialog', (dialog) => dialog.accept());
     await page.getByRole('button', { name: `${username} entfernen` }).click();

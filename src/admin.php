@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['archive_event']) || 
     $uuid = (string) ($archive ? $_POST['archive_event'] : $_POST['unarchive_event']);
     checkEventAccess($conn, $uuid);
 
-    if (!canManageEventTeam($conn, $uuid)) {
+    if (!canAdministerEvent($conn, $uuid)) {
         setFlashMessage("Nur wer das Event erstellt hat, kann es archivieren.", "error");
     } else {
         $stmt = $conn->prepare($archive

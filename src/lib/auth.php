@@ -103,8 +103,8 @@ function checkEventAccess(mysqli $conn, $uuid): void
     }
 }
 
-/** Creator-only actions (remove team members, archive): the event's creator and global admins. */
-function canManageEventTeam(mysqli $conn, string $uuid): bool
+/** Creator-only actions (remove team members, archive, delete): the event's creator and global admins. */
+function canAdministerEvent(mysqli $conn, string $uuid): bool
 {
     if (isAdmin()) {
         return true;
