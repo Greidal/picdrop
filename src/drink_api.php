@@ -44,8 +44,9 @@ if (!preg_match('/^[A-Za-z0-9_-]{8,64}$/', $device)) {
 $name = mb_substr(trim((string) ($_POST['name'] ?? '')), 0, 100);
 
 $action = (string) ($_GET['action'] ?? '');
-// Check-ins work in plain drink mode; everything else belongs to "Mein Pegel".
-if (!in_array($action, ['checkin', 'guests'], true) && !$event['setting_show_pegel']) {
+// Check-ins work in plain drink mode; everything else belongs to "Mein Pegel". That includes rounds:
+// recipients can only remove drinks given to them on "Mein Pegel".
+if ($action !== 'checkin' && !$event['setting_show_pegel']) {
     respond(['error' => '„Mein Pegel“ ist für dieses Event ausgeschaltet.'], 403);
 }
 if (in_array($action, ['checkin', 'delete_checkin', 'profile'], true) && isDeviceBlocked($conn, $eventId, $device)) {
@@ -77,6 +78,9 @@ switch ($action) {
         $abv = isset($_POST['abv']) ? (float) $_POST['abv'] : null;
         $forSelf = ($_POST['self'] ?? '1') !== '0';
         $round = array_slice(array_map('strval', (array) ($_POST['round'] ?? [])), 0, 50);
+        if ($round && !$event['setting_show_pegel']) {
+            respond(['error' => 'Runden gibt es nur mit „Mein Pegel“.'], 403);
+        }
         if (!$forSelf && !$round) {
             respond(['error' => 'Für wen ist das Getränk?'], 400);
         }

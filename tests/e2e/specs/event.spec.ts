@@ -158,6 +158,17 @@ test.describe('event settings', () => {
     expect(checkin.status()).toBe(200);
     const board = await (await page.request.get(`/get_leaderboard_data.php?event=${uuid}`)).json();
     expect(board.users[0]).toMatchObject({ uploader_name: 'Sepp', bac: null });
+
+    // no rounds: recipients could only remove them on "Mein Pegel"
+    expect((await request.post(`/drink_api.php?action=guests&event=${uuid}`, { multipart: { device_uuid: device } })).status()).toBe(403);
+    const round = await request.post(`/drink_api.php?action=checkin&event=${uuid}`, { multipart: { device_uuid: device, name: 'Sepp', drink_id: drinkId!, 'round[]': 'someone' } });
+    expect(round.status()).toBe(403);
+    await page.goto(`/index.php?event=${uuid}#drink`);
+    await page.locator('#uploader-name').fill('Sepp');
+    await page.getByRole('button', { name: 'Helles einchecken' }).click();
+    await expect(page.getByText('Für wen?')).toBeHidden();
+    await page.getByRole('button', { name: '✅ Einchecken' }).click();
+    await expect(page.locator('#guest-toast')).toHaveText('Prost! 🍻 Check-in erledigt!');
   });
 
   test('drinks without amount and alcohol count as points but not for the BAC until filled in', async ({ page, request }) => {

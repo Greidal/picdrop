@@ -503,9 +503,12 @@ renderGuestCommon($eventId);
                 <label class="sheet-label" for="ci-abv">Alkoholgehalt <output id="ci-abv-out"></output></label>
                 <input type="range" id="ci-abv" min="0" max="80" step="0.5">
 
-                <div class="sheet-label">Für wen? <small>mehrere = Runde 🎁</small></div>
-                <div class="people-chips" id="ci-people">
-                    <button type="button" class="selected" data-self="1">Ich</button>
+                <!-- Rounds need "Mein Pegel", where recipients can remove them again. -->
+                <div id="ci-for"<?php echo $showPegel ? '' : ' hidden'; ?>>
+                    <div class="sheet-label">Für wen? <small>mehrere = Runde 🎁</small></div>
+                    <div class="people-chips" id="ci-people">
+                        <button type="button" class="selected" data-self="1">Ich</button>
+                    </div>
                 </div>
 
                 <div class="sheet-actions">
@@ -743,7 +746,7 @@ renderGuestCommon($eventId);
     }
 
     async function loadGuests() {
-        if (ci.guestsLoaded) return;
+        if (ci.guestsLoaded || !<?php echo json_encode($showPegel); ?>) return;
         try {
             const data = await Guest.api('guests');
             const box = document.getElementById('ci-people');
