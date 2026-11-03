@@ -23,6 +23,7 @@ organizers manage events, see a live slideshow, a drinks leaderboard and a galle
 | `src/lib/auth.php` | Session, login, access checks, flash messages – include this first in every page |
 | `src/lib/helpers.php` | `e()`, CSRF, UUIDs, upload validation, `appBaseUrl()` |
 | `src/lib/images.php` / `metadata.php` | Thumbnail/display variants, GPS removal |
+| `src/lib/drinks.php` | Drink mode: check-ins, BAC estimate, badges, teams, rankings |
 | `src/lib/account.php` / `mail.php` | Verification + password reset tokens, e-mails |
 | `src/lib/config.php` | All configuration, read from environment variables |
 | `db/migrations/` | Versioned schema migrations `NNNN_name.sql` / `.php` |
@@ -56,7 +57,8 @@ This app is exposed to anonymous guests. Every change must keep these invariants
    variables into SQL strings.
 3. **Every state-changing request is POST and CSRF-protected:** `requireCsrf()` in the handler,
    `<?php echo csrfField(); ?>` in every form, `csrf_token` field or `X-CSRF-Token` header for `fetch`.
-   (Exception by design: guest uploads and emoji reactions on the public event page.)
+   (Exception by design: the public guest endpoints – uploads, emoji reactions and `drink_api.php` –
+   see "Guest identity" below.)
 4. **Access control:** pages for organizers call `requireLogin()` and `checkEventAccess($conn, $uuid)`
    before touching event data. Validate event IDs with `isValidUuid()` / `getEventOrDie()`.
 5. **Uploads** only through `storeUploadedImage()` (content-based type check, random file name).
@@ -68,6 +70,20 @@ This app is exposed to anonymous guests. Every change must keep these invariants
 7. **Links in e-mails** are built with `appBaseUrl()` (uses `APP_URL`, never the Host header).
 8. No new external scripts/CDNs, no shell execution (`exec` & co. are disabled in `php.ini`),
    no `allow_url_fopen`.
+
+### Guest identity
+
+Guests have no account. Their browser generates a random device id and keeps it in `localStorage`
+(`fotobox_device_uuid`); it is sent as a form field with every request to the guest endpoints.
+
+- No CSRF token here: these endpoints don't use the session cookie for authorization, so a foreign
+  site can't act on a guest's behalf without knowing the device id.
+- The device id works like a bearer token for that guest's data on the event (profile, own check-ins,
+  BAC). Never expose it to other guests; use `drinkGuestRef()` (a hash) when a guest picks someone
+  else, e.g. for a round.
+- A guest can only change their own data: check-ins are deleted by id **and** device id. Others can
+  add drinks for them (rounds), and the recipient can remove those again from "Mein Pegel".
+- Blocked devices (`blocked_devices`) must be rejected before anything is written.
 
 ## Conventions
 

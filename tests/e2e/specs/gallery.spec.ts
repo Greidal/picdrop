@@ -54,24 +54,62 @@ test.describe('gallery', () => {
     await expect(page.locator('#lightbox')).not.toHaveClass(/active/);
   });
 
-  test('photos can be deleted', async ({ page, request }) => {
-    await guestUpload(request, uuid, 'photo.jpg');
+  test('selected photos can be deleted together', async ({ page, request }) => {
+    for (const name of ['Anna', 'Ben', 'Cem']) {
+      await guestUpload(request, uuid, 'photo.jpg', name);
+    }
     await page.goto(`/gallery.php?event=${uuid}`);
-    const original = await originalUrl(page);
+    await expect(page.locator('.gallery-item .btn-delete')).toHaveCount(0);
+    const kept = await originalUrl(page, 2);
+    const deleted = await originalUrl(page, 0);
+
+    await page.getByRole('button', { name: 'Auswählen' }).click();
+    await page.locator('.gallery-item').nth(0).click();
+    await page.locator('.gallery-item').nth(1).click();
+    await expect(page.locator('#select-count')).toHaveText('2 ausgewählt');
+    await expect(page.locator('#lightbox')).not.toHaveClass(/active/);
 
     page.once('dialog', (dialog) => dialog.accept());
-    await page.locator('.gallery-item .btn-delete').first().click();
-    await expect(page.locator('.gallery-item')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Löschen', exact: true }).click();
+    await expect(page.locator('.gallery-item')).toHaveCount(1);
+    await expect(page.locator('#photo-count')).toHaveText('1');
 
     await page.reload();
-    await expect(page.getByText('Noch keine Fotos vorhanden.')).toBeVisible();
-    expect((await page.request.get(original)).status()).toBe(404);
+    await expect(page.locator('.gallery-item')).toHaveCount(1);
+    expect((await page.request.get(deleted)).status()).toBe(404);
+    expect((await page.request.get(kept)).status()).toBe(200);
+  });
+
+  test('selected photos are downloaded as one ZIP', async ({ page, request }) => {
+    await guestUpload(request, uuid, 'photo.jpg', 'Anna');
+    await guestUpload(request, uuid, 'gps.jpg', 'Ben');
+    await page.goto(`/gallery.php?event=${uuid}`);
+    const first = (await originalUrl(page, 0)).split('/').pop()!;
+    const second = (await originalUrl(page, 1)).split('/').pop()!;
+
+    await page.getByRole('button', { name: 'Auswählen' }).click();
+    await page.locator('.gallery-item').nth(0).click();
+    await page.getByRole('button', { name: 'Alle', exact: true }).click();
+    await expect(page.locator('#select-count')).toHaveText('2 ausgewählt');
+    await page.getByRole('button', { name: 'Alle', exact: true }).click();
+    await expect(page.locator('#select-count')).toHaveText('0 ausgewählt');
+    await page.locator('.gallery-item').nth(1).click();
+    await page.locator('.gallery-item').nth(0).click();
+
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'Download', exact: true }).click(),
+    ]);
+    expect(download.suggestedFilename()).toBe(`Fotos_${uuid}.zip`);
+    const zip = readFileSync((await download.path())!);
+    expect(zip.includes(Buffer.from(first))).toBe(true);
+    expect(zip.includes(Buffer.from(second))).toBe(true);
   });
 
   test('ZIP export contains the photos and the CSV', async ({ page, request }) => {
     await guestUpload(request, uuid, 'photo.jpg', '=HYPERLINK("http://evil")');
     await page.goto('/admin.php');
-    const card = page.locator('.card').filter({ has: page.locator(`a[href="gallery.php?event=${uuid}"]`) });
+    const card = page.locator('.event-row').filter({ has: page.locator(`a[href="gallery.php?event=${uuid}"]`) });
 
     const [download] = await Promise.all([
       page.waitForEvent('download'),

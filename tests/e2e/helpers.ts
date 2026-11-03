@@ -35,8 +35,8 @@ export async function createEvent(page: Page, name: string): Promise<string> {
   await page.getByRole('button', { name: 'Erstellen' }).click();
   await expect(page.locator('.msg.success')).toContainText('erfolgreich erstellt');
 
-  const card = page.locator('.card').filter({ has: page.getByRole('heading', { name, exact: true }) });
-  const href = await card.getByRole('link', { name: /Verwalten/ }).getAttribute('href');
+  const row = page.locator('.event-row').filter({ has: page.getByRole('heading', { name, exact: true }) });
+  const href = await row.getByRole('link', { name: 'Einstellungen' }).getAttribute('href');
   const uuid = new URL(href!, 'http://x').searchParams.get('event');
   expect(uuid).toMatch(/^[0-9a-f-]{36}$/);
   return uuid!;

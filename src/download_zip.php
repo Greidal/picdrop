@@ -8,6 +8,16 @@ checkEventAccess($conn, $uuid);
 $sourceDir = __DIR__ . "/uploads/" . $uuid;
 if (!is_dir($sourceDir) && !isset($_GET['export_db'])) die("Keine Daten vorhanden.");
 
+// POST with files[] = only the photos selected in the gallery (no logo/drink pictures).
+$selection = null;
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    requireCsrf();
+    $selection = [];
+    foreach (array_slice((array) ($_POST['files'] ?? []), 0, 5000) as $name) {
+        $selection[basename((string) $name)] = true;
+    }
+}
+
 // Build the archive on the uploads volume: /tmp is a small RAM-backed tmpfs in the container.
 $tmpDir = __DIR__ . '/uploads/.tmp';
 if (!is_dir($tmpDir)) {
@@ -38,6 +48,9 @@ if (is_dir($sourceDir)) {
         if (!$file->isDir() && !str_contains($file->getPathname(), '/.variants/')) {
             $filePath = $file->getPathname();
             $relativePath = substr($filePath, strlen($sourceDir) + 1);
+            if ($selection !== null && (str_contains($relativePath, '/') || !isset($selection[$relativePath]))) {
+                continue;
+            }
             $zip->addFile($filePath, $relativePath);
         }
     }
@@ -56,6 +69,9 @@ $stmt->execute();
 $res = $stmt->get_result();
 
 while ($row = $res->fetch_assoc()) {
+    if ($selection !== null && !isset($selection[$row['filename']])) {
+        continue;
+    }
     $file = csvCell($row['filename']);
     $user = csvCell($row['uploader_name']);
     $time = $row['timestamp'];
@@ -74,7 +90,8 @@ if (file_exists($zipFile)) {
 
     header('Content-Description: File Transfer');
     header('Content-Type: application/zip');
-    header('Content-Disposition: attachment; filename="Event_Backup_' . $uuid . '.zip"');
+    $zipName = ($selection !== null ? 'Fotos_' : 'Event_Backup_') . $uuid . '.zip';
+    header('Content-Disposition: attachment; filename="' . $zipName . '"');
     header('Expires: 0');
     header('Cache-Control: must-revalidate');
     header('Pragma: public');

@@ -27,3 +27,6 @@ define('VERIFY_TTL_DAYS', 7);
 define('PASSWORD_RESET_TTL_MINUTES', 60);
 // Max. account mails (verification, password reset) per address and hour.
 define('ACCOUNT_MAILS_PER_HOUR', 3);
+
+// Time zone of the event location. EXIF capture times and badge rules ("after 2 am") use it.
+define('APP_TIMEZONE', getenv('TZ') ?: 'Europe/Berlin');

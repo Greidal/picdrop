@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { admin, createEvent, env, extractLink, login, unique, waitForMail } from '../helpers';
+import { admin, createEvent, csrfToken, env, extractLink, login, unique, waitForMail } from '../helpers';
 
 test.describe('event management', () => {
   test.beforeEach(async ({ page }) => {
@@ -30,6 +30,7 @@ test.describe('event management', () => {
     const uuid = await createEvent(page, `Rename ${unique()}`);
     const newName = `Umbenannt ${unique()}`;
     await page.goto(`/manage_event.php?event=${uuid}`);
+    await page.getByRole('button', { name: 'Namen bearbeiten' }).click();
     await page.locator('#eventName').fill(newName);
     await page.getByRole('button', { name: 'Umbenennen' }).click();
     await expect(page.locator('.msg.success')).toHaveText('Event erfolgreich umbenannt!');
@@ -87,6 +88,168 @@ test.describe('event management', () => {
       const res = await other.goto(`/${path}?event=${uuid}`);
       expect(res?.status(), path).toBe(403);
     }
+    await context.close();
+  });
+});
+
+test.describe('event settings', () => {
+  test.beforeEach(async ({ page }) => {
+    await login(page, admin.email, admin.password);
+  });
+
+  test('QR code can be downloaded as PNG and SVG', async ({ page }) => {
+    const uuid = await createEvent(page, `QR ${unique()}`);
+    await page.goto(`/manage_event.php?event=${uuid}`);
+
+    for (const [format, magic] of [['PNG', '\x89PNG'], ['SVG', '<?xml']]) {
+      const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('link', { name: format }).click()]);
+      expect(download.suggestedFilename()).toMatch(new RegExp(`^QR_QR_.+\\.${format.toLowerCase()}$`));
+      const body = (await import('node:fs')).readFileSync((await download.path())!, 'latin1');
+      expect(body.startsWith(magic)).toBe(true);
+    }
+  });
+
+  test('drink menu: add, edit and delete drinks with amount and alcohol content', async ({ page }) => {
+    const uuid = await createEvent(page, `Bar ${unique()}`);
+    await page.goto(`/manage_event.php?event=${uuid}`);
+
+    await page.locator('#drink-template').selectOption('Aperol Spritz');
+    await expect(page.getByLabel('Name des neuen Getränks')).toHaveValue('Aperol Spritz');
+    await page.locator('#add-drink').getByRole('button').click();
+    await expect(page.locator('.msg.success')).toHaveText('Getränk hinzugefügt!');
+
+    const drinkRow = page.locator('form.drink-row').filter({ has: page.locator('input[value="Aperol Spritz"]') });
+    await expect(drinkRow.getByLabel('Standardmenge in ml')).toHaveValue('250');
+    await expect(drinkRow.getByLabel('Alkoholgehalt in Vol-%')).toHaveValue('8');
+    await drinkRow.getByLabel('Alkoholgehalt in Vol-%').fill('11');
+    await drinkRow.getByRole('button', { name: 'Änderungen übernehmen' }).click();
+    await expect(page.locator('.msg.success')).toContainText('gespeichert');
+    await expect(drinkRow.getByLabel('Alkoholgehalt in Vol-%')).toHaveValue('11');
+
+    page.once('dialog', (dialog) => dialog.accept());
+    await drinkRow.getByRole('button', { name: 'Getränk löschen' }).click();
+    await expect(page.locator('.msg.success')).toHaveText('Getränk gelöscht.');
+    await expect(page.locator('form.drink-row:not(.add)')).toHaveCount(0);
+  });
+
+  test('"Mein Pegel" has its own switch, check-ins keep working without it', async ({ page, request }) => {
+    const uuid = await createEvent(page, `Pegel ${unique()}`);
+    await page.goto(`/manage_event.php?event=${uuid}`);
+    await page.locator('#drink-template').selectOption('Helles');
+    await page.locator('#add-drink').getByRole('button').click();
+    const drinkId = await page.locator('form.drink-row:not(.add)').getByRole('button', { name: 'Getränk löschen' }).getAttribute('value');
+    await page.goto(`/index.php?event=${uuid}`);
+    await expect(page.getByRole('link', { name: '📈 Mein Pegel' })).toBeVisible();
+
+    await page.goto(`/manage_event.php?event=${uuid}`);
+    await page.getByText('„Mein Pegel“ für Gäste').click();
+    await page.getByRole('button', { name: 'Speichern' }).click();
+    await expect(page.locator('.msg.success')).toContainText('gespeichert');
+
+    await page.goto(`/index.php?event=${uuid}`);
+    await expect(page.getByRole('link', { name: '🍺 Getränk einchecken' })).toBeVisible();
+    await expect(page.getByRole('link', { name: '📈 Mein Pegel' })).toHaveCount(0);
+    await page.goto(`/pegel.php?event=${uuid}`);
+    await expect(page).toHaveURL(/index\.php/);
+
+    const device = `dev_nopegel_${unique()}`;
+    expect((await request.post(`/drink_api.php?action=state&event=${uuid}`, { multipart: { device_uuid: device } })).status()).toBe(403);
+    const checkin = await request.post(`/drink_api.php?action=checkin&event=${uuid}`, { multipart: { device_uuid: device, name: 'Sepp', drink_id: drinkId! } });
+    expect(checkin.status()).toBe(200);
+    const board = await (await page.request.get(`/get_leaderboard_data.php?event=${uuid}`)).json();
+    expect(board.users[0]).toMatchObject({ uploader_name: 'Sepp', bac: null });
+
+    // no rounds: recipients could only remove them on "Mein Pegel"
+    expect((await request.post(`/drink_api.php?action=guests&event=${uuid}`, { multipart: { device_uuid: device } })).status()).toBe(403);
+    const round = await request.post(`/drink_api.php?action=checkin&event=${uuid}`, { multipart: { device_uuid: device, name: 'Sepp', drink_id: drinkId!, 'round[]': 'someone' } });
+    expect(round.status()).toBe(403);
+    await page.goto(`/index.php?event=${uuid}#drink`);
+    await page.locator('#uploader-name').fill('Sepp');
+    await page.getByRole('button', { name: 'Helles einchecken' }).click();
+    await expect(page.getByText('Für wen?')).toBeHidden();
+    await page.getByRole('button', { name: '✅ Einchecken' }).click();
+    await expect(page.locator('#guest-toast')).toHaveText('Prost! 🍻 Check-in erledigt!');
+  });
+
+  test('drinks without amount and alcohol count as points but not for the BAC until filled in', async ({ page, request }) => {
+    const uuid = await createEvent(page, `Offen ${unique()}`);
+    await page.goto(`/manage_event.php?event=${uuid}`);
+    await page.locator('#drink-template').selectOption('Helles');
+    await page.locator('#add-drink').getByRole('button').click();
+    const row = page.locator('form.drink-row:not(.add)');
+    const drinkId = await row.getByRole('button', { name: 'Getränk löschen' }).getAttribute('value');
+    await row.getByLabel('Standardmenge in ml').fill('');
+    await row.getByLabel('Alkoholgehalt in Vol-%').fill('');
+    await row.getByRole('button', { name: 'Änderungen übernehmen' }).click();
+    await expect(row).toContainText('Menge/Alkohol fehlen');
+
+    const device = `dev_open_${unique()}`;
+    await request.post(`/drink_api.php?action=checkin&event=${uuid}`, { multipart: { device_uuid: device, name: 'Sepp', drink_id: drinkId! } });
+    const state = async () => (await (await request.post(`/drink_api.php?action=state&event=${uuid}`, { multipart: { device_uuid: device } })).json());
+    expect((await state()).history[0]).toMatchObject({ known: false, grams: 0 });
+    expect((await state()).stats.points).toBe(1);
+
+    await row.getByLabel('Standardmenge in ml').fill('20');
+    await row.getByLabel('Alkoholgehalt in Vol-%').fill('18');
+    await row.getByRole('button', { name: 'Änderungen übernehmen' }).click();
+    await expect(row).not.toContainText('Menge/Alkohol fehlen');
+    expect((await state()).history[0]).toMatchObject({ known: true, volume_ml: 20, abv: 18 });
+  });
+
+  test('deleting a drink keeps its check-ins and points', async ({ page, request }) => {
+    const uuid = await createEvent(page, `Soft ${unique()}`);
+    await page.goto(`/manage_event.php?event=${uuid}`);
+    await page.locator('#drink-template').selectOption('Helles');
+    await page.locator('#add-drink').getByRole('button').click();
+    const drinkId = await page.locator('form.drink-row:not(.add)').getByRole('button', { name: 'Getränk löschen' }).getAttribute('value');
+
+    const checkin = { device_uuid: `dev_soft_${unique()}`, name: 'Sepp', drink_id: drinkId! };
+    expect((await request.post(`/drink_api.php?action=checkin&event=${uuid}`, { multipart: checkin })).status()).toBe(200);
+
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.locator('form.drink-row:not(.add)').getByRole('button', { name: 'Getränk löschen' }).click();
+    await expect(page.locator('.msg.success')).toHaveText('Getränk gelöscht.');
+
+    const board = await (await page.request.get(`/get_leaderboard_data.php?event=${uuid}`)).json();
+    expect(board.users[0]).toMatchObject({ uploader_name: 'Sepp', count: 1 });
+    expect(board.drinks[0]).toMatchObject({ name: 'Helles' });
+
+    // gone from the menu: no new check-ins
+    expect((await request.post(`/drink_api.php?action=checkin&event=${uuid}`, { multipart: checkin })).status()).toBe(400);
+    await page.goto(`/index.php?event=${uuid}#drink`);
+    await expect(page.locator('.drink-card')).toHaveCount(0);
+  });
+
+  test('the creator can remove people again', async ({ page, request, browser }) => {
+    const uuid = await createEvent(page, `Team ${unique()}`);
+    const email = `member-${unique()}@picdrop.test`;
+    const context = await browser.newContext();
+    const other = await context.newPage();
+    await other.goto('/register.php');
+    await other.getByPlaceholder('E-Mail Adresse').fill(email);
+    const username = `m${unique()}`.slice(0, 20);
+    await other.getByPlaceholder('Anzeigename').fill(username);
+    await other.getByPlaceholder(/Passwort/).fill('member-password-1');
+    await other.getByPlaceholder('Registrierungs-Code').fill(env.REGISTRATION_CODE);
+    await other.getByRole('button', { name: 'Registrieren' }).click();
+    await other.goto(extractLink(await waitForMail(request, email, /bestätige/), 'verify.php'));
+    await login(other, email, 'member-password-1');
+
+    await page.goto(`/manage_event.php?event=${uuid}`);
+    await page.getByPlaceholder('gast@beispiel.de').fill(email);
+    await page.getByRole('button', { name: 'Einladen' }).click();
+    expect((await other.goto(`/manage_event.php?event=${uuid}`))?.status()).toBe(200);
+    // members can't remove anyone or delete the event
+    await expect(other.getByRole('button', { name: /entfernen$/ })).toHaveCount(0);
+    await expect(other.getByText('Danger Zone')).toHaveCount(0);
+    const token = await csrfToken(other);
+    const del = await other.request.post(`/manage_event.php?event=${uuid}`, { form: { csrf_token: token, delete_event_final: 'yes' } });
+    expect(del.status()).toBe(403);
+
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.getByRole('button', { name: `${username} entfernen` }).click();
+    await expect(page.locator('.msg.success')).toHaveText('Zugriff entfernt.');
+    expect((await other.goto(`/manage_event.php?event=${uuid}`))?.status()).toBe(403);
     await context.close();
   });
 });

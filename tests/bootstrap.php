@@ -4,3 +4,4 @@ require_once dirname(__DIR__) . '/src/lib/helpers.php';
 require_once dirname(__DIR__) . '/src/lib/images.php';
 require_once dirname(__DIR__) . '/src/lib/metadata.php';
 require_once dirname(__DIR__) . '/src/lib/migrations.php';
+require_once dirname(__DIR__) . '/src/lib/drinks.php';
