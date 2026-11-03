@@ -48,6 +48,9 @@ $action = (string) ($_GET['action'] ?? '');
 if (!in_array($action, ['checkin', 'guests'], true) && !$event['setting_show_pegel']) {
     respond(['error' => '„Mein Pegel“ ist für dieses Event ausgeschaltet.'], 403);
 }
+if (in_array($action, ['checkin', 'delete_checkin', 'profile'], true) && isDeviceBlocked($conn, $eventId, $device)) {
+    respond(['error' => '⛔ Dein Gerät wurde für dieses Event gesperrt.'], 403);
+}
 
 switch ($action) {
     case 'state':
@@ -63,9 +66,6 @@ switch ($action) {
         respond(['guests' => $guests]);
 
     case 'checkin':
-        if (isDeviceBlocked($conn, $eventId, $device)) {
-            respond(['error' => '⛔ Dein Gerät wurde für dieses Event gesperrt.'], 403);
-        }
         if ($name === '') {
             respond(['error' => 'Wer trinkt das? Bitte gib deinen Namen ein!'], 400);
         }
