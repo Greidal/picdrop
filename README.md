@@ -8,7 +8,8 @@ A web-based photo gallery and event management system built with PHP and MySQL/M
 - **Photo Gallery**: Guests upload photos from their phone – also several at once, with progress – and view them in the gallery and live slideshow.
 - **Event Management**: Dashboard grouped into own, shared and (for admins) other users' events, with search and an archive for past events. Settings per event: logo, guest link with QR code (PNG/SVG), upload and slideshow options, drink menu, team members.
 - **Gallery**: Select several photos and download them as a ZIP or delete them together.
-- **Drink mode**: Guests check in drinks (amount and alcohol content via slider or glass presets, optionally with a photo, also as a round for others), see an estimated blood alcohol curve with forecast ("Mein Pegel"), stats, badges and a team ranking, and can share their evening as an Instagram story image. The slideshow can show the photographer's estimated BAC at the time of the photo. All BAC values are rough estimates (Widmark formula).
+- **Drink mode**: Guests check in drinks (amount and alcohol content via slider or glass presets, optionally with a photo, also as a round for others) and collect points for the leaderboard.
+- **"Mein Pegel"** (separate setting per event, off for events created before it existed): estimated blood alcohol curve with forecast, stats, badges, team ranking and a story image to share. The slideshow can show the photographer's estimated BAC at the time of the photo. All BAC values are rough estimates (Widmark formula) and must not be used to decide whether someone can drive.
 - **Leaderboard**: Points per guest and per team.
 - **Email Notifications**: Uses PHPMailer for sending emails (e.g., verification, notifications).
 - **Download as ZIP**: Download all images of an event (plus a CSV export) as a ZIP archive.
