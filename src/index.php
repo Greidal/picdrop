@@ -26,7 +26,7 @@ if (isLoggedIn()) {
     $prefilledName = $_SESSION['username'] ?? '';
 }
 
-$stmt = $conn->prepare("SELECT id, name, image_path, volume_ml, abv FROM drinks WHERE event_uuid = ? ORDER BY id");
+$stmt = $conn->prepare("SELECT id, name, image_path, volume_ml, abv FROM drinks WHERE event_uuid = ? AND deleted_at IS NULL ORDER BY id");
 $stmt->bind_param("s", $eventId);
 $stmt->execute();
 $drinks = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);

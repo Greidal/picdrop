@@ -451,10 +451,10 @@ function isDeviceBlocked(mysqli $conn, string $eventId, string $deviceUuid): boo
     return $stmt->get_result()->num_rows > 0;
 }
 
-/** Default amount and alcohol content of a drink of this event, null if it doesn't belong to it. */
+/** Default amount and alcohol content of a drink on this event's menu, null if it isn't on it. */
 function drinkDefaults(mysqli $conn, string $eventId, int $drinkId): ?array
 {
-    $stmt = $conn->prepare("SELECT volume_ml, abv FROM drinks WHERE id = ? AND event_uuid = ?");
+    $stmt = $conn->prepare("SELECT volume_ml, abv FROM drinks WHERE id = ? AND event_uuid = ? AND deleted_at IS NULL");
     $stmt->bind_param("is", $drinkId, $eventId);
     $stmt->execute();
     return $stmt->get_result()->fetch_assoc() ?: null;

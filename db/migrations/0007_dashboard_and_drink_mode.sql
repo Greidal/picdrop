@@ -16,6 +16,8 @@ UPDATE `events` e SET `created_by` = (
 ALTER TABLE `drinks` ADD COLUMN IF NOT EXISTS `volume_ml` INT(11) NOT NULL DEFAULT 500;
 ALTER TABLE `drinks` ADD COLUMN IF NOT EXISTS `abv` DECIMAL(4,1) NOT NULL DEFAULT 5.0;
 ALTER TABLE `drinks` MODIFY `image_path` VARCHAR(255) NULL;
+-- Drinks are only hidden from the menu, so check-ins, points and history stay intact.
+ALTER TABLE `drinks` ADD COLUMN IF NOT EXISTS `deleted_at` DATETIME DEFAULT NULL;
 
 -- Teams guests can join to compete against each other.
 CREATE TABLE IF NOT EXISTS `teams` (
@@ -46,6 +48,7 @@ CREATE TABLE IF NOT EXISTS `drinker_profiles` (
 
 -- One row per drink and person. Drinks can be checked in without a photo and for others
 -- (rounds), so they no longer live in `uploads`; uploads.drink_id stays for the slideshow caption.
+-- fk_checkins_drink only cascades when a whole event is deleted: single drinks are soft-deleted.
 CREATE TABLE IF NOT EXISTS `checkins` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
   `event_uuid` VARCHAR(36) NOT NULL,

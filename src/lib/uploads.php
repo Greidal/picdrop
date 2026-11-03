@@ -42,7 +42,7 @@ function handleGuestUpload(mysqli $conn, string $eventId, array $file, array $in
 
     if ($drinkId) {
         // Only accept drinks that belong to this event.
-        $drinkCheck = $conn->prepare("SELECT id FROM drinks WHERE id = ? AND event_uuid = ?");
+        $drinkCheck = $conn->prepare("SELECT id FROM drinks WHERE id = ? AND event_uuid = ? AND deleted_at IS NULL");
         $drinkCheck->bind_param("is", $drinkId, $eventId);
         $drinkCheck->execute();
         if ($drinkCheck->get_result()->num_rows === 0) {

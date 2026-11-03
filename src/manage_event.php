@@ -209,18 +209,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (isset($_POST['delete_drink_id'])) {
+        // Soft delete: gone from the menu, but check-ins, points and the picture in the history stay.
         $did = intval($_POST['delete_drink_id']);
-
-        $stmt = $conn->prepare("SELECT image_path FROM drinks WHERE id=? AND event_uuid=?");
-        $stmt->bind_param("is", $did, $uuid);
-        $stmt->execute();
-        if ($row = $stmt->get_result()->fetch_assoc()) {
-            deleteEventFile($row['image_path'], $uuid);
-
-            $del = $conn->prepare("DELETE FROM drinks WHERE id=? AND event_uuid=?");
-            $del->bind_param("is", $did, $uuid);
-            $del->execute();
-
+        $del = $conn->prepare("UPDATE drinks SET deleted_at = NOW() WHERE id = ? AND event_uuid = ? AND deleted_at IS NULL");
+        $del->bind_param("is", $did, $uuid);
+        $del->execute();
+        if ($del->affected_rows > 0) {
             setFlashMessage("Getränk gelöscht.", "success");
         }
         redirectSelf($uuid, 'drinks');
@@ -250,7 +244,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['update_drink_id'])) {
         $did = (int) $_POST['update_drink_id'];
         $v = drinkFormValues($_POST);
-        $stmt = $conn->prepare("SELECT image_path FROM drinks WHERE id = ? AND event_uuid = ?");
+        $stmt = $conn->prepare("SELECT image_path FROM drinks WHERE id = ? AND event_uuid = ? AND deleted_at IS NULL");
         $stmt->bind_param("is", $did, $uuid);
         $stmt->execute();
         $drink = $stmt->get_result()->fetch_assoc();
@@ -312,7 +306,7 @@ $stmt->bind_param("s", $uuid);
 $stmt->execute();
 $event = $stmt->get_result()->fetch_assoc();
 
-$drinkStmt = $conn->prepare("SELECT d.*, (SELECT COUNT(*) FROM checkins c WHERE c.drink_id = d.id) AS checkins FROM drinks d WHERE d.event_uuid = ? ORDER BY d.id");
+$drinkStmt = $conn->prepare("SELECT d.*, (SELECT COUNT(*) FROM checkins c WHERE c.drink_id = d.id) AS checkins FROM drinks d WHERE d.event_uuid = ? AND d.deleted_at IS NULL ORDER BY d.id");
 $drinkStmt->bind_param("s", $uuid);
 $drinkStmt->execute();
 $drinks = $drinkStmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -903,7 +897,7 @@ function settingToggle(string $name, bool $checked, string $title, string $hint 
                     <div class="drink-actions">
                         <button class="icon-btn" name="update_drink_id" value="<?php echo (int) $d['id']; ?>" title="Änderungen übernehmen" aria-label="Änderungen übernehmen"><i class="fa fa-check"></i></button>
                         <button class="icon-btn danger" name="delete_drink_id" value="<?php echo (int) $d['id']; ?>" formnovalidate title="Getränk löschen" aria-label="Getränk löschen"
-                            onclick="return confirm('Getränk wirklich löschen? Alle Check-ins dieses Getränks werden mit gelöscht.')"><i class="fa fa-trash"></i></button>
+                            onclick="return confirm('Getränk von der Karte nehmen? Bisherige Check-ins und Punkte bleiben erhalten.')"><i class="fa fa-trash"></i></button>
                     </div>
                 </form>
             <?php endforeach; ?>

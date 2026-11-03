@@ -132,6 +132,30 @@ test.describe('event settings', () => {
     await expect(page.locator('form.drink-row:not(.add)')).toHaveCount(0);
   });
 
+  test('deleting a drink keeps its check-ins and points', async ({ page, request }) => {
+    const uuid = await createEvent(page, `Soft ${unique()}`);
+    await page.goto(`/manage_event.php?event=${uuid}`);
+    await page.locator('#drink-template').selectOption('Helles');
+    await page.locator('#add-drink').getByRole('button').click();
+    const drinkId = await page.locator('form.drink-row:not(.add)').getByRole('button', { name: 'Getränk löschen' }).getAttribute('value');
+
+    const checkin = { device_uuid: `dev_soft_${unique()}`, name: 'Sepp', drink_id: drinkId! };
+    expect((await request.post(`/drink_api.php?action=checkin&event=${uuid}`, { multipart: checkin })).status()).toBe(200);
+
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.locator('form.drink-row:not(.add)').getByRole('button', { name: 'Getränk löschen' }).click();
+    await expect(page.locator('.msg.success')).toHaveText('Getränk gelöscht.');
+
+    const board = await (await page.request.get(`/get_leaderboard_data.php?event=${uuid}`)).json();
+    expect(board.users[0]).toMatchObject({ uploader_name: 'Sepp', count: 1 });
+    expect(board.drinks[0]).toMatchObject({ name: 'Helles' });
+
+    // gone from the menu: no new check-ins
+    expect((await request.post(`/drink_api.php?action=checkin&event=${uuid}`, { multipart: checkin })).status()).toBe(400);
+    await page.goto(`/index.php?event=${uuid}#drink`);
+    await expect(page.locator('.drink-card')).toHaveCount(0);
+  });
+
   test('the creator can remove people again', async ({ page, request, browser }) => {
     const uuid = await createEvent(page, `Team ${unique()}`);
     const email = `member-${unique()}@picdrop.test`;
