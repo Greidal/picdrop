@@ -88,6 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $s_uploader = isset($_POST['s_uploader']) ? 1 : 0;
         $s_time = isset($_POST['s_time']) ? 1 : 0;
         $s_bar = isset($_POST['s_bar']) ? 1 : 0;
+        $s_pegel = isset($_POST['s_pegel']) ? 1 : 0;
         $s_evtname = isset($_POST['s_evtname']) ? 1 : 0;
         $s_merge = isset($_POST['s_merge']) ? 1 : 0;
         $s_strip = isset($_POST['s_strip_location']) ? 1 : 0;
@@ -104,9 +105,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $wasStripping = !empty($prev->get_result()->fetch_assoc()['setting_strip_location']);
 
         $upd = $conn->prepare("UPDATE events SET setting_show_badge=?, setting_show_uploader=?, setting_show_time=?, setting_show_event_name=?,
-            setting_show_bar=?, setting_merge_by_device=?, setting_strip_location=?, setting_use_capture_time=?, setting_show_location=?,
+            setting_show_bar=?, setting_show_pegel=?, setting_merge_by_device=?, setting_strip_location=?, setting_use_capture_time=?, setting_show_location=?,
             setting_show_bac=?, location=?, setting_slide_duration=? WHERE uuid=?");
-        $upd->bind_param("iiiiiiiiiisis", $s_badge, $s_uploader, $s_time, $s_evtname, $s_bar, $s_merge, $s_strip, $s_capture,
+        $upd->bind_param("iiiiiiiiiiisis", $s_badge, $s_uploader, $s_time, $s_evtname, $s_bar, $s_pegel, $s_merge, $s_strip, $s_capture,
             $s_show_location, $s_bac, $location, $s_duration, $uuid);
         $upd->execute();
 
@@ -834,7 +835,9 @@ function settingToggle(string $name, bool $checked, string $title, string $hint 
                 echo settingToggle('s_strip_location', (bool) $event['setting_strip_location'], 'Standortdaten (GPS) aus Fotos entfernen',
                     'Entfernt GPS-Koordinaten ohne Qualitätsverlust – auch aus bereits hochgeladenen Fotos. HEIC wird nicht unterstützt.');
                 echo settingToggle('s_bar', (bool) $event['setting_show_bar'], 'Getränkemodus aktivieren',
-                    'Gäste checken Getränke ein, sehen „Mein Pegel“, Abzeichen und treten in Teams gegeneinander an.');
+                    'Gäste checken Getränke ein und sammeln Punkte fürs Leaderboard.');
+                echo settingToggle('s_pegel', (bool) $event['setting_show_pegel'], '„Mein Pegel“ für Gäste',
+                    'Geschätzter Promillewert mit Prognose, Abzeichen, Teams und Story-Bild (nur im Getränkemodus).');
                 ?>
             </div>
 
@@ -852,7 +855,7 @@ function settingToggle(string $name, bool $checked, string $title, string $hint 
                 <?php
                 echo settingToggle('s_badge', (bool) $event['setting_show_badge'], '„NEU“-Badge anzeigen');
                 echo settingToggle('s_bac', (bool) $event['setting_show_bac'], 'Pegel des Fotografen einblenden',
-                    'Zeigt den geschätzten Promillewert zum Zeitpunkt des Fotos (nur im Getränkemodus).');
+                    'Zeigt den geschätzten Promillewert zum Zeitpunkt des Fotos (nur mit „Mein Pegel“).');
                 $seconds = $event['setting_slide_duration'] / 1000;
                 ?>
                 <label for="s_duration">Anzeigedauer pro Bild</label>

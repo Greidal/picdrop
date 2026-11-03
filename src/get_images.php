@@ -19,11 +19,11 @@ if (!$eventId) {
 
 checkEventAccess($conn, $eventId);
 
-$evt = $conn->prepare("SELECT setting_show_bar, setting_show_bac FROM events WHERE uuid = ?");
+$evt = $conn->prepare("SELECT setting_show_bar, setting_show_pegel, setting_show_bac FROM events WHERE uuid = ?");
 $evt->bind_param("s", $eventId);
 $evt->execute();
 $settings = $evt->get_result()->fetch_assoc();
-$withBac = !empty($settings['setting_show_bar']) && !empty($settings['setting_show_bac']);
+$withBac = !empty($settings['setting_show_bar']) && !empty($settings['setting_show_pegel']) && !empty($settings['setting_show_bac']);
 
 $stmt = $conn->prepare("
     SELECT u.*, UNIX_TIMESTAMP(u.timestamp) AS ts, d.name as drink_name, d.image_path 

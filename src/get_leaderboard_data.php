@@ -18,10 +18,12 @@ if (!$eventId) {
 
 checkEventAccess($conn, $eventId);
 
-$evtQuery = $conn->prepare("SELECT setting_merge_by_device FROM events WHERE uuid = ?");
+$evtQuery = $conn->prepare("SELECT setting_merge_by_device, setting_show_pegel FROM events WHERE uuid = ?");
 $evtQuery->bind_param("s", $eventId);
 $evtQuery->execute();
-$mergeByDevice = (bool) ($evtQuery->get_result()->fetch_assoc()['setting_merge_by_device'] ?? 1);
+$settings = $evtQuery->get_result()->fetch_assoc();
+$mergeByDevice = (bool) ($settings['setting_merge_by_device'] ?? 1);
+$withBac = !empty($settings['setting_show_pegel']);
 
 $board = drinkBoard($conn, $eventId, $mergeByDevice);
 
@@ -29,7 +31,7 @@ $users = array_map(static fn ($p) => [
     'uploader_name' => $p['name'],
     'count' => $p['points'],
     'drinks' => $p['drinks'],
-    'bac' => $p['bac'],
+    'bac' => $withBac ? $p['bac'] : null,
     'team' => $p['team'],
     'details' => $p['details'],
 ], array_slice($board['people'], 0, 30));
@@ -50,6 +52,6 @@ while ($row = $resDrinks->fetch_assoc()) {
 
 echo json_encode([
     'users' => $users,
-    'teams' => $board['teams'],
+    'teams' => array_map(static fn ($t) => ['avg_bac' => $withBac ? $t['avg_bac'] : null] + $t, $board['teams']),
     'drinks' => $drinks
 ]);

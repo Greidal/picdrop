@@ -5,10 +5,10 @@ require_once __DIR__ . '/lib/auth.php';
 $eventId = $_GET['event'] ?? '';
 $eventName = getEventOrDie($conn, $eventId);
 
-$stmt = $conn->prepare("SELECT setting_show_bar FROM events WHERE uuid = ?");
+$stmt = $conn->prepare("SELECT setting_show_bar AND setting_show_pegel AS enabled FROM events WHERE uuid = ?");
 $stmt->bind_param("s", $eventId);
 $stmt->execute();
-if (empty($stmt->get_result()->fetch_assoc()['setting_show_bar'])) {
+if (empty($stmt->get_result()->fetch_assoc()['enabled'])) {
     header("Location: index.php?event=" . urlencode($eventId));
     exit;
 }

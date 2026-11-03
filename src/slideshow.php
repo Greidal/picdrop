@@ -5,7 +5,7 @@ requireLogin();
 $eventId = $_GET['event'] ?? '';
 checkEventAccess($conn, $eventId);
 
-$stmt = $conn->prepare("SELECT name, logo_path, location, setting_show_badge, setting_show_uploader, setting_show_time, setting_show_event_name, setting_show_location, setting_show_bar, setting_show_bac, setting_slide_duration FROM events WHERE uuid = ?");
+$stmt = $conn->prepare("SELECT name, logo_path, location, setting_show_badge, setting_show_uploader, setting_show_time, setting_show_event_name, setting_show_location, setting_show_bar, setting_show_pegel, setting_show_bac, setting_slide_duration FROM events WHERE uuid = ?");
 $stmt->bind_param("s", $eventId);
 $stmt->execute();
 $eventData = $stmt->get_result()->fetch_assoc();
@@ -213,7 +213,7 @@ $eventData = $stmt->get_result()->fetch_assoc();
             showTime: <?php echo (int) $eventData['setting_show_time']; ?>,
             showEventName: <?php echo (int) $eventData['setting_show_event_name']; ?>,
             showLocation: <?php echo (int) (!empty($eventData['setting_show_location']) && !empty($eventData['location'])); ?>,
-            showBac: <?php echo (int) (!empty($eventData['setting_show_bar']) && !empty($eventData['setting_show_bac'])); ?>
+            showBac: <?php echo (int) (!empty($eventData['setting_show_bar']) && !empty($eventData['setting_show_pegel']) && !empty($eventData['setting_show_bac'])); ?>
         };
 
         const els = {

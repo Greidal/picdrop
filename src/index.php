@@ -13,11 +13,12 @@ if ($eventId === '') {
 $eventName = getEventOrDie($conn, $eventId);
 
 // load event settings: drink mode, strip location data from photos, date photos by capture time
-$stmt2 = $conn->prepare("SELECT setting_show_bar, setting_strip_location, setting_use_capture_time FROM events WHERE uuid = ?");
+$stmt2 = $conn->prepare("SELECT setting_show_bar, setting_show_pegel, setting_strip_location, setting_use_capture_time FROM events WHERE uuid = ?");
 $stmt2->bind_param("s", $eventId);
 $stmt2->execute();
 $row = $stmt2->get_result()->fetch_assoc();
 $showBar = isset($row['setting_show_bar']) ? boolval($row['setting_show_bar']) : true;
+$showPegel = $showBar && !empty($row['setting_show_pegel']);
 $stripLocation = !empty($row['setting_strip_location']);
 $useCaptureTime = !empty($row['setting_use_capture_time']);
 
@@ -441,7 +442,9 @@ renderGuestCommon($eventId);
         <?php if ($showBar): ?>
             <div class="drink-links">
                 <a href="#drink" class="btn btn-secondary">🍺 Getränk einchecken</a>
-                <a href="pegel.php?event=<?php echo e(urlencode($eventId)); ?>" class="btn btn-secondary">📈 Mein Pegel</a>
+                <?php if ($showPegel): ?>
+                    <a href="pegel.php?event=<?php echo e(urlencode($eventId)); ?>" class="btn btn-secondary">📈 Mein Pegel</a>
+                <?php endif; ?>
             </div>
         <?php endif; ?>
 
@@ -468,7 +471,9 @@ renderGuestCommon($eventId);
                         </button>
                     <?php endforeach; ?>
                 </div>
-                <a href="pegel.php?event=<?php echo e(urlencode($eventId)); ?>" class="btn btn-secondary btn-small" style="margin-top:6px;">📈 Mein Pegel</a>
+                <?php if ($showPegel): ?>
+                    <a href="pegel.php?event=<?php echo e(urlencode($eventId)); ?>" class="btn btn-secondary btn-small" style="margin-top:6px;">📈 Mein Pegel</a>
+                <?php endif; ?>
             <?php else: ?>
                 <p>Für dieses Event wurde noch keine Getränkekarte angelegt.</p>
             <?php endif; ?>

@@ -4,6 +4,8 @@ ALTER TABLE `events` ADD COLUMN IF NOT EXISTS `archived_at` DATETIME DEFAULT NUL
 ALTER TABLE `events` ADD COLUMN IF NOT EXISTS `location` VARCHAR(100) DEFAULT NULL;
 ALTER TABLE `events` ADD COLUMN IF NOT EXISTS `setting_show_location` TINYINT(1) NOT NULL DEFAULT 0;
 ALTER TABLE `events` ADD COLUMN IF NOT EXISTS `setting_show_bac` TINYINT(1) NOT NULL DEFAULT 0;
+-- "Mein Pegel" is opt-in for existing events (new events get it enabled in admin.php).
+ALTER TABLE `events` ADD COLUMN IF NOT EXISTS `setting_show_pegel` TINYINT(1) NOT NULL DEFAULT 0;
 ALTER TABLE `events` ADD COLUMN IF NOT EXISTS `setting_use_capture_time` TINYINT(1) NOT NULL DEFAULT 0;
 CREATE INDEX IF NOT EXISTS `idx_events_created_by` ON `events` (`created_by`);
 

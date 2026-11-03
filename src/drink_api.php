@@ -26,7 +26,7 @@ $eventId = $_GET['event'] ?? '';
 if (!isValidUuid($eventId)) {
     respond(['error' => 'Ungültiges Event'], 400);
 }
-$stmt = $conn->prepare("SELECT name, setting_show_bar, setting_merge_by_device, setting_strip_location FROM events WHERE uuid = ?");
+$stmt = $conn->prepare("SELECT name, setting_show_bar, setting_show_pegel, setting_merge_by_device, setting_strip_location FROM events WHERE uuid = ?");
 $stmt->bind_param("s", $eventId);
 $stmt->execute();
 $event = $stmt->get_result()->fetch_assoc();
@@ -43,7 +43,13 @@ if (!preg_match('/^[A-Za-z0-9_-]{8,64}$/', $device)) {
 }
 $name = mb_substr(trim((string) ($_POST['name'] ?? '')), 0, 100);
 
-switch ($_GET['action'] ?? '') {
+$action = (string) ($_GET['action'] ?? '');
+// Check-ins work in plain drink mode; everything else belongs to "Mein Pegel".
+if (!in_array($action, ['checkin', 'guests'], true) && !$event['setting_show_pegel']) {
+    respond(['error' => '„Mein Pegel“ ist für dieses Event ausgeschaltet.'], 403);
+}
+
+switch ($action) {
     case 'state':
         respond(guestState($conn, $eventId, $device, (bool) $event['setting_merge_by_device']));
 

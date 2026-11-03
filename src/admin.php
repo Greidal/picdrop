@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_name'])) {
         $uuid = generateUuidV4();
 
         $conn->begin_transaction();
-        $stmt = $conn->prepare("INSERT INTO events (uuid, name, created_by) VALUES (?, ?, ?)");
+        $stmt = $conn->prepare("INSERT INTO events (uuid, name, created_by, setting_show_pegel) VALUES (?, ?, ?, 1)");
         $stmt->bind_param("ssi", $uuid, $name, $userId);
         $stmt->execute();
 

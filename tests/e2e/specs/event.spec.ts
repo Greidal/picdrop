@@ -132,6 +132,34 @@ test.describe('event settings', () => {
     await expect(page.locator('form.drink-row:not(.add)')).toHaveCount(0);
   });
 
+  test('"Mein Pegel" has its own switch, check-ins keep working without it', async ({ page, request }) => {
+    const uuid = await createEvent(page, `Pegel ${unique()}`);
+    await page.goto(`/manage_event.php?event=${uuid}`);
+    await page.locator('#drink-template').selectOption('Helles');
+    await page.locator('#add-drink').getByRole('button').click();
+    const drinkId = await page.locator('form.drink-row:not(.add)').getByRole('button', { name: 'Getränk löschen' }).getAttribute('value');
+    await page.goto(`/index.php?event=${uuid}`);
+    await expect(page.getByRole('link', { name: '📈 Mein Pegel' })).toBeVisible();
+
+    await page.goto(`/manage_event.php?event=${uuid}`);
+    await page.getByText('„Mein Pegel“ für Gäste').click();
+    await page.getByRole('button', { name: 'Speichern' }).click();
+    await expect(page.locator('.msg.success')).toContainText('gespeichert');
+
+    await page.goto(`/index.php?event=${uuid}`);
+    await expect(page.getByRole('link', { name: '🍺 Getränk einchecken' })).toBeVisible();
+    await expect(page.getByRole('link', { name: '📈 Mein Pegel' })).toHaveCount(0);
+    await page.goto(`/pegel.php?event=${uuid}`);
+    await expect(page).toHaveURL(/index\.php/);
+
+    const device = `dev_nopegel_${unique()}`;
+    expect((await request.post(`/drink_api.php?action=state&event=${uuid}`, { multipart: { device_uuid: device } })).status()).toBe(403);
+    const checkin = await request.post(`/drink_api.php?action=checkin&event=${uuid}`, { multipart: { device_uuid: device, name: 'Sepp', drink_id: drinkId! } });
+    expect(checkin.status()).toBe(200);
+    const board = await (await page.request.get(`/get_leaderboard_data.php?event=${uuid}`)).json();
+    expect(board.users[0]).toMatchObject({ uploader_name: 'Sepp', bac: null });
+  });
+
   test('deleting a drink keeps its check-ins and points', async ({ page, request }) => {
     const uuid = await createEvent(page, `Soft ${unique()}`);
     await page.goto(`/manage_event.php?event=${uuid}`);

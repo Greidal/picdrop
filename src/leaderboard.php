@@ -171,7 +171,7 @@ require __DIR__ . '/lib/header.php';
             const name = boardTab === 'teams' ? r.name : r.uploader_name;
             const points = boardTab === 'teams' ? r.points : r.count;
             const sub = boardTab === 'teams'
-                ? `${r.members} Mitglieder · Ø ${fmt(r.avg_points)} Pkt · Ø ${fmt(r.avg_bac, 2)} ‰`
+                ? `${r.members} Mitglieder · Ø ${fmt(r.avg_points)} Pkt` + (r.avg_bac !== null ? ` · Ø ${fmt(r.avg_bac, 2)} ‰` : '')
                 : `${r.drinks} Getränke${r.team ? ' · 👥 ' + escapeHtml(r.team) : ''}`;
             const bac = boardTab === 'users' && r.bac > 0 ? `<span class="lb-bac">${fmt(r.bac, 2)} ‰</span>` : '';
             html += `
