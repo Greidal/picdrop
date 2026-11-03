@@ -103,6 +103,8 @@ This app is exposed to anonymous guests. Every change must keep these invariants
 - Don't edit `CHANGELOG.md` for new versions – release notes are generated as GitHub Releases.
 - Never commit `.env`, real credentials or production data. `tests/e2e/e2e.env` holds test-only values.
 - `main` is protected: all changes go through pull requests with green CI.
-- Dependabot PRs: a **major** `@types/node` update must be merged together with raising
-  `node-version` in `.github/workflows/ci.yml` to the same major (push that change to the
-  Dependabot branch); the types must match the Node.js version the tests run on.
+- Dependabot PRs: a **major** `@types/node` update must be merged together with raising the
+  Node.js version to the same major (push that change to the Dependabot branch); the types must
+  match the Node.js version the tests run on. It is set in `node-version` in
+  `.github/workflows/ci.yml`, `engines` in `tests/e2e/package.json` (and `package-lock.json`) and
+  the requirements in `CONTRIBUTING.md`.

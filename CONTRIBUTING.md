@@ -8,7 +8,7 @@ change must follow are in [AGENTS.md](AGENTS.md) (written for humans and AI agen
 
 ## Setup
 
-Requirements: PHP 8.5 with `gd`, `exif`, `mysqli`, `zip`, `mbstring`; Composer; Docker; Node.js 22
+Requirements: PHP 8.5 with `gd`, `exif`, `mysqli`, `zip`, `mbstring`; Composer; Docker; Node.js 26
 (only for the end-to-end tests).
 
 ```sh
