@@ -339,11 +339,11 @@ renderGuestCommon($eventId);
         <div id="bac-sub">Lade …</div>
         <div class="tiles">
             <div class="tile">
-                <div class="k">🚗 Unter 0,5 ‰</div>
+                <div class="k">🚗 Vielleicht unter 0,5 ‰ ab</div>
                 <div class="v" id="t-limit">–</div>
             </div>
             <div class="tile">
-                <div class="k">💧 Wieder nüchtern</div>
+                <div class="k">💧 Vielleicht nüchtern ab</div>
                 <div class="v" id="t-sober">–</div>
             </div>
         </div>
@@ -463,8 +463,8 @@ renderGuestCommon($eventId);
         }
         document.getElementById('bac-sub').textContent = sub;
 
-        document.getElementById('t-limit').textContent = b.below_limit_at ? Guest.formatTime(b.below_limit_at) + ' Uhr' : (b.current < state.limit && !(b.peak && b.peak.value >= state.limit && b.peak.ts > state.now) ? '✓ jetzt' : '–');
-        document.getElementById('t-sober').textContent = b.sober_at ? Guest.formatTime(b.sober_at) + ' Uhr' : (b.current === 0 ? '✓ jetzt' : '–');
+        document.getElementById('t-limit').textContent = b.below_limit_at ? 'ca. ' + Guest.formatTime(b.below_limit_at) + ' Uhr' : (b.current < state.limit && !(b.peak && b.peak.value >= state.limit && b.peak.ts > state.now) ? 'vermutlich jetzt' : '–');
+        document.getElementById('t-sober').textContent = b.sober_at ? 'ca. ' + Guest.formatTime(b.sober_at) + ' Uhr' : (b.current === 0 ? 'vermutlich jetzt' : '–');
         document.getElementById('t-limit').title = b.below_limit_at ? relTime(b.below_limit_at) : '';
         document.getElementById('t-sober').title = b.sober_at ? relTime(b.sober_at) : '';
 
