@@ -160,6 +160,31 @@ test.describe('event settings', () => {
     expect(board.users[0]).toMatchObject({ uploader_name: 'Sepp', bac: null });
   });
 
+  test('drinks without amount and alcohol count as points but not for the BAC until filled in', async ({ page, request }) => {
+    const uuid = await createEvent(page, `Offen ${unique()}`);
+    await page.goto(`/manage_event.php?event=${uuid}`);
+    await page.locator('#drink-template').selectOption('Helles');
+    await page.locator('#add-drink').getByRole('button').click();
+    const row = page.locator('form.drink-row:not(.add)');
+    const drinkId = await row.getByRole('button', { name: 'Getränk löschen' }).getAttribute('value');
+    await row.getByLabel('Standardmenge in ml').fill('');
+    await row.getByLabel('Alkoholgehalt in Vol-%').fill('');
+    await row.getByRole('button', { name: 'Änderungen übernehmen' }).click();
+    await expect(row).toContainText('Menge/Alkohol fehlen');
+
+    const device = `dev_open_${unique()}`;
+    await request.post(`/drink_api.php?action=checkin&event=${uuid}`, { multipart: { device_uuid: device, name: 'Sepp', drink_id: drinkId! } });
+    const state = async () => (await (await request.post(`/drink_api.php?action=state&event=${uuid}`, { multipart: { device_uuid: device } })).json());
+    expect((await state()).history[0]).toMatchObject({ known: false, grams: 0 });
+    expect((await state()).stats.points).toBe(1);
+
+    await row.getByLabel('Standardmenge in ml').fill('20');
+    await row.getByLabel('Alkoholgehalt in Vol-%').fill('18');
+    await row.getByRole('button', { name: 'Änderungen übernehmen' }).click();
+    await expect(row).not.toContainText('Menge/Alkohol fehlen');
+    expect((await state()).history[0]).toMatchObject({ known: true, volume_ml: 20, abv: 18 });
+  });
+
   test('deleting a drink keeps its check-ins and points', async ({ page, request }) => {
     const uuid = await createEvent(page, `Soft ${unique()}`);
     await page.goto(`/manage_event.php?event=${uuid}`);

@@ -82,13 +82,13 @@ function drinkGrams(int $volumeMl, float $abv): float
 /**
  * All check-ins of an event (or of one device), oldest first.
  * @return list<array{id:int, device:?string, name:string, ts:int, drink_id:int, drink:string, img:?string,
- *                    volume_ml:int, abv:float, grams:float, score:float, round_by:?string, has_photo:bool}>
+ *                    volume_ml:int, abv:float, known:bool, grams:float, score:float, round_by:?string, has_photo:bool}>
  */
 function drinkLoadCheckins(mysqli $conn, string $eventId, ?string $deviceUuid = null): array
 {
     $sql = "
         SELECT c.id, c.device_uuid, c.name, UNIX_TIMESTAMP(c.created_at) AS ts, c.drink_id, d.name AS drink,
-               d.image_path, c.volume_ml, c.abv, d.score_factor, c.round_by, c.upload_id
+               d.image_path, COALESCE(c.volume_ml, d.volume_ml) AS volume_ml, COALESCE(c.abv, d.abv) AS abv, d.score_factor, c.round_by, c.upload_id
         FROM checkins c JOIN drinks d ON d.id = c.drink_id
         WHERE c.event_uuid = ?" . ($deviceUuid !== null ? " AND c.device_uuid = ?" : "") . "
         ORDER BY c.created_at ASC, c.id ASC";
@@ -102,6 +102,8 @@ function drinkLoadCheckins(mysqli $conn, string $eventId, ?string $deviceUuid = 
 
     $checkins = [];
     foreach ($stmt->get_result() as $row) {
+        // Old check-ins of drinks without amount/alcohol still count as points, but not for the BAC.
+        $known = $row['volume_ml'] !== null && $row['abv'] !== null;
         $checkins[] = [
             'id' => (int) $row['id'],
             'device' => $row['device_uuid'],
@@ -112,7 +114,8 @@ function drinkLoadCheckins(mysqli $conn, string $eventId, ?string $deviceUuid = 
             'img' => $row['image_path'],
             'volume_ml' => (int) $row['volume_ml'],
             'abv' => (float) $row['abv'],
-            'grams' => round(drinkGrams((int) $row['volume_ml'], (float) $row['abv']), 1),
+            'known' => $known,
+            'grams' => $known ? round(drinkGrams((int) $row['volume_ml'], (float) $row['abv']), 1) : 0.0,
             'score' => (float) $row['score_factor'],
             'round_by' => $row['round_by'],
             'has_photo' => $row['upload_id'] !== null,
@@ -471,8 +474,10 @@ function drinkCheckin(mysqli $conn, string $eventId, string $deviceUuid, string 
     if ($defaults === null) {
         return 0;
     }
-    $volumeMl = max(1, min(3000, $volumeMl ?? (int) $defaults['volume_ml']));
-    $abv = max(0.0, min(96.0, $abv ?? (float) $defaults['abv']));
+    $volumeMl ??= $defaults['volume_ml'] !== null ? (int) $defaults['volume_ml'] : null;
+    $abv ??= $defaults['abv'] !== null ? (float) $defaults['abv'] : null;
+    $volumeMl = $volumeMl !== null ? max(1, min(3000, $volumeMl)) : null;
+    $abv = $abv !== null ? max(0.0, min(96.0, $abv)) : null;
 
     $recipients = [];
     if ($forSelf) {

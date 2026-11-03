@@ -459,14 +459,16 @@ renderGuestCommon($eventId);
                 <div class="drink-grid">
                     <?php foreach ($drinks as $d): ?>
                         <button type="button" class="drink-card" aria-label="<?php echo e($d['name']); ?> einchecken" data-id="<?php echo (int) $d['id']; ?>" data-name="<?php echo e($d['name']); ?>"
-                            data-ml="<?php echo (int) $d['volume_ml']; ?>" data-abv="<?php echo e((float) $d['abv']); ?>" onclick="openCheckin(this.dataset)">
+                            data-ml="<?php echo (int) ($d['volume_ml'] ?? 500); ?>" data-abv="<?php echo e((float) ($d['abv'] ?? 5)); ?>" onclick="openCheckin(this.dataset)">
                             <?php if ($d['image_path']): ?>
                                 <img src="<?php echo e($d['image_path']); ?>" class="drink-img" alt="">
                             <?php else: ?>
                                 <div class="drink-emoji">🍹</div>
                             <?php endif; ?>
                             <div class="drink-name"><?php echo e($d['name']); ?>
-                                <small><?php echo (int) $d['volume_ml']; ?> ml · <?php echo e(str_replace('.', ',', (string) (float) $d['abv'])); ?> %</small>
+                                <?php if ($d['volume_ml'] !== null && $d['abv'] !== null): ?>
+                                    <small><?php echo (int) $d['volume_ml']; ?> ml · <?php echo e(str_replace('.', ',', (string) (float) $d['abv'])); ?> %</small>
+                                <?php endif; ?>
                             </div>
                         </button>
                     <?php endforeach; ?>

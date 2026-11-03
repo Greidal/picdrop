@@ -25,8 +25,9 @@ function drinkFormValues(array $post): array
 {
     return [
         'name' => mb_substr(trim((string) ($post['drink_name'] ?? '')), 0, 100),
-        'volume' => max(1, min(3000, (int) ($post['drink_volume'] ?? 500))),
-        'abv' => max(0.0, min(96.0, (float) str_replace(',', '.', (string) ($post['drink_abv'] ?? 5)))),
+        // Empty = not known yet (drinks from before this field existed).
+        'volume' => trim((string) ($post['drink_volume'] ?? '')) === '' ? null : max(1, min(3000, (int) $post['drink_volume'])),
+        'abv' => trim((string) ($post['drink_abv'] ?? '')) === '' ? null : max(0.0, min(96.0, (float) str_replace(',', '.', (string) $post['drink_abv']))),
         'score' => max(0.0, min(999.9, (float) str_replace(',', '.', (string) ($post['drink_score'] ?? 1)))),
     ];
 }
@@ -896,10 +897,10 @@ function settingToggle(string $name, bool $checked, string $title, string $hint 
                     </label>
                     <div class="c-name">
                         <input type="text" name="drink_name" value="<?php echo e($d['name']); ?>" maxlength="100" required aria-label="Name">
-                        <span class="uses"><?php echo (int) $d['checkins']; ?>× eingecheckt</span>
+                        <span class="uses"><?php echo (int) $d['checkins']; ?>× eingecheckt<?php if ($d['volume_ml'] === null || $d['abv'] === null): ?> · ⚠️ Menge/Alkohol fehlen, zählt nicht im Pegel<?php endif; ?></span>
                     </div>
-                    <div class="unit c-vol" data-unit="ml"><input type="number" name="drink_volume" value="<?php echo (int) $d['volume_ml']; ?>" min="1" max="3000" aria-label="Standardmenge in ml"></div>
-                    <div class="unit c-abv" data-unit="%"><input type="number" name="drink_abv" value="<?php echo e((float) $d['abv']); ?>" min="0" max="96" step="0.1" aria-label="Alkoholgehalt in Vol-%"></div>
+                    <div class="unit c-vol" data-unit="ml"><input type="number" name="drink_volume" value="<?php echo e($d['volume_ml'] ?? ''); ?>" min="1" max="3000" aria-label="Standardmenge in ml"></div>
+                    <div class="unit c-abv" data-unit="%"><input type="number" name="drink_abv" value="<?php echo $d['abv'] !== null ? e((float) $d['abv']) : ''; ?>" min="0" max="96" step="0.1" aria-label="Alkoholgehalt in Vol-%"></div>
                     <div class="unit c-score" data-unit="×"><input type="number" name="drink_score" value="<?php echo e((float) $d['score_factor']); ?>" min="0" step="0.1" aria-label="Punkte-Faktor"></div>
                     <div class="drink-actions">
                         <button class="icon-btn" name="update_drink_id" value="<?php echo (int) $d['id']; ?>" title="Änderungen übernehmen" aria-label="Änderungen übernehmen"><i class="fa fa-check"></i></button>

@@ -556,7 +556,7 @@ renderGuestCommon($eventId);
                 li.appendChild(el('span', { class: 'thumb' }, '🍹'));
             }
             const what = el('span', { class: 'what' }, d.drink + (d.has_photo ? ' 📸' : ''));
-            let meta = `${d.volume_ml} ml · ${d.abv.toLocaleString('de-DE')} % · ${d.grams.toLocaleString('de-DE')} g`;
+            let meta = d.known ? `${d.volume_ml} ml · ${d.abv.toLocaleString('de-DE')} % · ${d.grams.toLocaleString('de-DE')} g` : 'Menge & Alkohol unbekannt';
             if (d.from) meta += ` · 🎁 von ${d.from}`;
             what.appendChild(el('small', {}, meta));
             li.appendChild(what);

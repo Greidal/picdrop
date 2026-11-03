@@ -15,8 +15,9 @@ UPDATE `events` e SET `created_by` = (
 ) WHERE e.`created_by` IS NULL;
 
 -- Drink menu: default amount and alcohol content; the picture becomes optional.
-ALTER TABLE `drinks` ADD COLUMN IF NOT EXISTS `volume_ml` INT(11) NOT NULL DEFAULT 500;
-ALTER TABLE `drinks` ADD COLUMN IF NOT EXISTS `abv` DECIMAL(4,1) NOT NULL DEFAULT 5.0;
+-- Empty for existing drinks until the organizer fills them in: guessing would be wrong for most.
+ALTER TABLE `drinks` ADD COLUMN IF NOT EXISTS `volume_ml` INT(11) DEFAULT NULL;
+ALTER TABLE `drinks` ADD COLUMN IF NOT EXISTS `abv` DECIMAL(4,1) DEFAULT NULL;
 ALTER TABLE `drinks` MODIFY `image_path` VARCHAR(255) NULL;
 -- Drinks are only hidden from the menu, so check-ins, points and history stay intact.
 ALTER TABLE `drinks` ADD COLUMN IF NOT EXISTS `deleted_at` DATETIME DEFAULT NULL;
@@ -57,8 +58,8 @@ CREATE TABLE IF NOT EXISTS `checkins` (
   `device_uuid` VARCHAR(64) DEFAULT NULL,
   `name` VARCHAR(100) NOT NULL DEFAULT '',
   `drink_id` INT(11) NOT NULL,
-  `volume_ml` INT(11) NOT NULL,
-  `abv` DECIMAL(4,1) NOT NULL,
+  `volume_ml` INT(11) DEFAULT NULL,
+  `abv` DECIMAL(4,1) DEFAULT NULL,
   `upload_id` INT(11) DEFAULT NULL,
   `round_by` VARCHAR(64) DEFAULT NULL,
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -69,8 +70,9 @@ CREATE TABLE IF NOT EXISTS `checkins` (
   CONSTRAINT `fk_checkins_upload` FOREIGN KEY (`upload_id`) REFERENCES `uploads` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- Earlier drink check-ins (photo + drink) keep counting.
-INSERT INTO `checkins` (`event_uuid`, `device_uuid`, `name`, `drink_id`, `volume_ml`, `abv`, `upload_id`, `created_at`)
-SELECT u.`event_id`, u.`device_uuid`, COALESCE(u.`uploader_name`, ''), u.`drink_id`, d.`volume_ml`, d.`abv`, u.`id`, u.`timestamp`
-FROM `uploads` u JOIN `drinks` d ON d.`id` = u.`drink_id`
-WHERE NOT EXISTS (SELECT 1 FROM `checkins` c WHERE c.`upload_id` = u.`id`);
+-- Earlier drink check-ins (photo + drink) keep counting. Without own values they use the drink's
+-- defaults as soon as those are filled in.
+INSERT INTO `checkins` (`event_uuid`, `device_uuid`, `name`, `drink_id`, `upload_id`, `created_at`)
+SELECT u.`event_id`, u.`device_uuid`, COALESCE(u.`uploader_name`, ''), u.`drink_id`, u.`id`, u.`timestamp`
+FROM `uploads` u
+WHERE u.`drink_id` IS NOT NULL AND NOT EXISTS (SELECT 1 FROM `checkins` c WHERE c.`upload_id` = u.`id`);

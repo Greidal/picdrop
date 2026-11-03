@@ -192,6 +192,7 @@ function guestState(mysqli $conn, string $eventId, string $device, bool $mergeBy
         'volume_ml' => $d['volume_ml'],
         'abv' => $d['abv'],
         'grams' => $d['grams'],
+        'known' => $d['known'],
         'has_photo' => $d['has_photo'],
         'from' => $d['round_by'] !== null && $d['round_by'] !== $device ? ($guestNames[$d['round_by']] ?? 'jemand') : null,
     ], array_reverse($drinks));
