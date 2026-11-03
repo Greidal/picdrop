@@ -497,7 +497,9 @@ renderGuestCommon($eventId);
             return;
         }
         const t0 = series[0][0];
-        const t1 = Math.max(series[series.length - 1][0], state.now + 1800);
+        // Finished evenings end with the curve; don't stretch the axis up to today.
+        const seriesEnd = series[series.length - 1][0];
+        const t1 = state.now <= seriesEnd ? seriesEnd : (state.now - seriesEnd < 3600 ? state.now + 1800 : seriesEnd);
         const maxV = Math.max(0.8, ...series.map((p) => p[1])) * 1.15;
         const x = (t) => L + (t - t0) / (t1 - t0) * (W - L - R);
         const y = (v) => T + (1 - v / maxV) * (H - T - B);
@@ -527,7 +529,7 @@ renderGuestCommon($eventId);
             add('path', { d: path(future), fill: 'none', stroke: '#ff0055', 'stroke-width': 2, 'stroke-dasharray': '5 5', opacity: 0.7 });
         }
         // now marker
-        if (state.now >= t0) {
+        if (state.now >= t0 && state.now <= t1) {
             add('line', { x1: x(state.now), x2: x(state.now), y1: T, y2: H - B, stroke: '#666', 'stroke-dasharray': '2 3' });
             add('circle', { cx: x(state.now), cy: y(state.bac.current), r: 5, fill: bacColor(state.bac.current), stroke: '#111', 'stroke-width': 2 });
             add('text', { x: Math.min(x(state.now) + 4, W - 30), y: T + 10 }, 'jetzt');

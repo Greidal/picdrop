@@ -10,6 +10,7 @@ const RESORPTION_DEFICIT = 0.10;     // ~10 % of the alcohol never reaches the b
 const ABSORPTION_MINUTES = 45;       // time until a drink is fully absorbed
 const ELIMINATION_PER_HOUR = 0.15;   // ‰ per hour
 const BAC_STEP_SECONDS = 120;        // resolution of the curve
+const BAC_MAX_HOURS_AFTER_LAST_DRINK = 48;
 const WIDMARK_R = ['m' => 0.68, 'f' => 0.55];
 const DRIVING_LIMIT = 0.5;           // ‰
 
@@ -121,14 +122,16 @@ function drinkLoadCheckins(mysqli $conn, string $eventId, ?string $deviceUuid = 
 }
 
 /**
- * Blood alcohol curve in fixed steps: every drink is absorbed linearly over ABSORPTION_MINUTES,
- * the body eliminates ELIMINATION_PER_HOUR as long as there is alcohol. The curve runs from the
- * first drink until the person is sober again (at most 24 h after max($now, last drink)).
+ * Blood alcohol curve: every drink is absorbed linearly over ABSORPTION_MINUTES, the body
+ * eliminates ELIMINATION_PER_HOUR as long as there is alcohol. Computed in fixed steps from the
+ * first drink until the person is sober after the last one. Sober phases between drinks are
+ * skipped, so the effort depends on the drinks and not on how long ago the event was
+ * (this runs for every guest on each leaderboard and slideshow refresh).
  *
  * @param list<array{ts:int, grams:float}> $drinks sorted by time
- * @return list<array{0:int, 1:float}> [unix time, ‰]
+ * @return list<array{0:int, 1:float}> [unix time, ‰], not evenly spaced
  */
-function bacCurve(array $drinks, array $profile, int $now): array
+function bacCurve(array $drinks, array $profile): array
 {
     if (!$drinks) {
         return [];
@@ -136,26 +139,38 @@ function bacCurve(array $drinks, array $profile, int $now): array
     $bodyWater = WIDMARK_R[$profile['sex']] * $profile['weight_kg'];
     $absorbSeconds = ABSORPTION_MINUTES * 60;
     $elimPerStep = ELIMINATION_PER_HOUR / 3600 * BAC_STEP_SECONDS;
-    $lastDrink = end($drinks)['ts'];
-    $end = max($now, $lastDrink) + 24 * 3600;
+    $end = end($drinks)['ts'] + BAC_MAX_HOURS_AFTER_LAST_DRINK * 3600;
 
-    $points = [[$drinks[0]['ts'], 0.0]];
+    $t = $drinks[0]['ts'];
+    $points = [[$t, 0.0]];
     $bac = 0.0;
-    for ($t = $drinks[0]['ts'] + BAC_STEP_SECONDS; $t <= $end; $t += BAC_STEP_SECONDS) {
+    while ($t < $end) {
+        $t += BAC_STEP_SECONDS;
         $absorbed = 0.0;
+        $absorbing = false;
+        $nextDrink = null;
         foreach ($drinks as $d) {
+            if ($d['ts'] > $t) {
+                $nextDrink = $d['ts'];
+                break;
+            }
             // share of this drink that enters the blood during this step
             $from = max($t - BAC_STEP_SECONDS, $d['ts']);
             $to = min($t, $d['ts'] + $absorbSeconds);
             if ($to > $from) {
                 $absorbed += $d['grams'] * (1 - RESORPTION_DEFICIT) * ($to - $from) / $absorbSeconds;
             }
+            $absorbing = $absorbing || $d['ts'] + $absorbSeconds > $t;
         }
         $bac = max(0.0, $bac + $absorbed / $bodyWater - $elimPerStep);
         $points[] = [$t, $bac];
 
-        if ($bac == 0.0 && $t >= $lastDrink + $absorbSeconds && $t >= $now) {
-            break;
+        if ($bac == 0.0 && !$absorbing) {
+            if ($nextDrink === null) {
+                break;
+            }
+            $t = $nextDrink;
+            $points[] = [$t, 0.0];
         }
     }
     return $points;
@@ -168,12 +183,22 @@ function bacAt(array $curve, int $ts): float
     if ($count === 0 || $ts < $curve[0][0] || $ts > $curve[$count - 1][0]) {
         return 0.0;
     }
-    $i = min($count - 1, intdiv($ts - $curve[0][0], BAC_STEP_SECONDS));
-    if ($i + 1 >= $count) {
-        return $curve[$i][1];
+    // Binary search: the points are not evenly spaced (sober phases are skipped).
+    $low = 0;
+    $high = $count - 1;
+    while ($high - $low > 1) {
+        $mid = intdiv($low + $high, 2);
+        if ($curve[$mid][0] <= $ts) {
+            $low = $mid;
+        } else {
+            $high = $mid;
+        }
     }
-    [$t0, $v0] = $curve[$i];
-    [$t1, $v1] = $curve[$i + 1];
+    [$t0, $v0] = $curve[$low];
+    [$t1, $v1] = $curve[$high];
+    if ($ts >= $t1) {
+        return $v1;
+    }
     return $v0 + ($v1 - $v0) * ($ts - $t0) / max(1, $t1 - $t0);
 }
 
@@ -187,7 +212,7 @@ function simulateBac(array $drinks, array $profile, int $now, bool $withSeries =
         'series' => [], 'current' => 0.0, 'peak' => null, 'session_start' => null,
         'below_limit_at' => null, 'sober_at' => null,
     ];
-    $curve = bacCurve($drinks, $profile, $now);
+    $curve = bacCurve($drinks, $profile);
     if (!$curve) {
         return $result;
     }

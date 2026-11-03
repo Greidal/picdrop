@@ -72,12 +72,40 @@ final class DrinksTest extends TestCase
 
     public function testBacAtInterpolatesAndIsZeroOutsideTheCurve(): void
     {
-        $curve = bacCurve([self::drink(0)], self::PROFILE, self::T0);
+        $curve = bacCurve([self::drink(0)], self::PROFILE);
         $this->assertSame(0.0, bacAt($curve, self::T0 - 60));
         $this->assertSame(0.0, bacAt($curve, self::T0 + 48 * 3600));
         $mid = bacAt($curve, self::T0 + 30 * 60 + 60);
         $this->assertGreaterThan(min(bacAt($curve, self::T0 + 1800), bacAt($curve, self::T0 + 1920)) - 0.0001, $mid);
         $this->assertLessThan(max(bacAt($curve, self::T0 + 1800), bacAt($curve, self::T0 + 1920)) + 0.0001, $mid);
+    }
+
+    public function testCurveStopsOnceSoberNoMatterHowLongAgoTheEventWas(): void
+    {
+        $curve = bacCurve([self::drink(0), self::drink(30)], self::PROFILE);
+        $this->assertSame(0.0, end($curve)[1]);
+        // two beers are gone within a few hours: far fewer points than steps up to "now"
+        $this->assertLessThan(200, count($curve));
+
+        $weeksLater = self::T0 + 30 * 24 * 3600;
+        $sim = simulateBac([self::drink(0), self::drink(30)], self::PROFILE, $weeksLater);
+        $this->assertSame(0.0, $sim['current']);
+        $this->assertLessThan(200, count($sim['series']));
+    }
+
+    public function testSoberPhasesBetweenDrinksAreSkipped(): void
+    {
+        $twoWeeks = 14 * 24 * 60;
+        $curve = bacCurve([self::drink(0), self::drink($twoWeeks)], self::PROFILE);
+        $this->assertLessThan(200, count($curve));
+        $this->assertSame(0.0, bacAt($curve, self::T0 + 7 * 24 * 3600));
+        $this->assertGreaterThan(0.0, bacAt($curve, self::T0 + ($twoWeeks + 45) * 60));
+    }
+
+    public function testCurveEndsEvenForAbsurdAmounts(): void
+    {
+        $curve = bacCurve([self::drink(0, 3000, 96.0)], self::PROFILE);
+        $this->assertLessThanOrEqual(BAC_MAX_HOURS_AFTER_LAST_DRINK * 30 + 2, count($curve));
     }
 
     public function testStats(): void

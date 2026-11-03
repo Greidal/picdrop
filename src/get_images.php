@@ -47,7 +47,7 @@ if ($withBac) {
         }
     }
     foreach ($byDevice as $device => $drinks) {
-        $curves[$device] = bacCurve($drinks, $profiles[$device] ?? drinkDefaultProfile(), time());
+        $curves[$device] = bacCurve($drinks, $profiles[$device] ?? drinkDefaultProfile());
     }
 }
 
