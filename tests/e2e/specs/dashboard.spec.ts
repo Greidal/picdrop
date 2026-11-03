@@ -66,6 +66,9 @@ test.describe('dashboard', () => {
     await page.getByPlaceholder('Events suchen…').fill('');
     await section(page, 'Von mir erstellt').locator('summary').click();
     await expect(row(page, `Suche Beta ${tag}`)).toBeHidden();
+    // The toggle event (which saves the state) fires after the section is already closed.
+    const key = await section(page, 'Von mir erstellt').getAttribute('data-section');
+    await expect.poll(() => page.evaluate((k) => JSON.parse(localStorage.getItem('picdrop_dashboard_sections') || '{}')[k!], key)).toBe(false);
     await page.reload();
     await expect(row(page, `Suche Beta ${tag}`)).toBeHidden(); // remembered
     await section(page, 'Von mir erstellt').locator('summary').click();
