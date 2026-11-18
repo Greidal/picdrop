@@ -1,0 +1,3 @@
+# Currently, we only raise funding using a simple PayPal Pool
+
+custom: ["https://www.paypal.com/pool/9uunWnSEMv?sr=wccr"]
